@@ -37,6 +37,11 @@ def test_get_iteration_out_of_range():
         get_iteration(trace, 99)
 
 
+def test_get_iteration_rejects_bad_trace_shape():
+    with pytest.raises(TypeError, match="iterations"):
+        get_iteration({"run_id": "bad", "iterations": {}}, 0)
+
+
 def test_get_step_found():
     trace = load_fixture("buggy_routing.json")
 
@@ -51,3 +56,7 @@ def test_get_step_missing_id():
     with pytest.raises(KeyError):
         get_step(trace, "missing.step")
 
+
+def test_get_step_rejects_bad_trace_shape():
+    with pytest.raises(TypeError, match="iterations"):
+        get_step({"run_id": "bad"}, "iter0.step0")

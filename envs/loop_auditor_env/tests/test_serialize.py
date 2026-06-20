@@ -1,7 +1,13 @@
 import json
 from pathlib import Path
 
-from loop_auditor_env.serialize import summarize_step, summarize_trace
+import pytest
+
+from loop_auditor_env.serialize import (
+    summarize_iteration,
+    summarize_step,
+    summarize_trace,
+)
 
 
 FIXTURE_DIR = Path(__file__).resolve().parents[1] / "fixtures"
@@ -83,3 +89,18 @@ def test_summarize_step_truncates_long_content():
     assert summary.startswith("long.step: final")
     assert summary.endswith("...")
     assert len(summary) < 150
+
+
+def test_summarize_trace_rejects_missing_iterations():
+    with pytest.raises(TypeError, match="iterations"):
+        summarize_trace({"run_id": "bad", "task": "missing iterations"})
+
+
+def test_summarize_iteration_rejects_bad_steps_shape():
+    with pytest.raises(TypeError, match="steps"):
+        summarize_iteration({"index": 0, "steps": {}})
+
+
+def test_summarize_step_rejects_missing_step_id():
+    with pytest.raises(KeyError, match="step_id"):
+        summarize_step({"action_type": "message", "output": "missing id"})
