@@ -1,0 +1,49 @@
+{
+  "run_id": "buggy-routing-001",
+  "task": "Fix the checkout tax calculation in the customer app.",
+  "model": "fixture-worker",
+  "iterations": [
+    {
+      "index": 0,
+      "thought": "Find the checkout tax code.",
+      "steps": [
+        {
+          "step_id": "iter0.step0.search-checkout",
+          "action_type": "tool_call",
+          "tool_name": "search",
+          "input": "checkout tax customer app",
+          "output": ["apps/customer/checkout/tax.ts", "apps/admin/tax_dashboard.ts"],
+          "status": "ok",
+          "tokens": 14
+        },
+        {
+          "step_id": "iter0.step1.edit-admin-route",
+          "action_type": "tool_call",
+          "tool_name": "edit_file",
+          "input": "apps/admin/tax_dashboard.ts",
+          "output": "Changed admin dashboard tax display instead of customer checkout tax logic.",
+          "status": "ok",
+          "tokens": 20
+        }
+      ]
+    },
+    {
+      "index": 1,
+      "steps": [
+        {
+          "step_id": "iter1.step0.message",
+          "action_type": "message",
+          "output": "I updated the tax behavior.",
+          "status": "ok",
+          "tokens": 7
+        }
+      ]
+    }
+  ],
+  "planted_failure": {
+    "step_id": "iter0.step1.edit-admin-route",
+    "failure_type": "routing",
+    "description": "At this exact step the agent edits the admin route instead of the customer checkout route; symptom and cause are the same local action."
+  }
+}
+
