@@ -28,4 +28,19 @@ def compute_reward(
 
         reward = 1.0 if verdict["predicted_step_id"] == config.NO_FAULT_STEP_ID else 0.0
     """
-    raise NotImplementedError
+    if not isinstance(verdict, dict):
+        raise TypeError("verdict must be a dict")
+
+    if ground_truth is None:
+        return 1.0 if verdict["predicted_step_id"] == config.NO_FAULT_STEP_ID else 0.0
+    if not isinstance(ground_truth, dict):
+        raise TypeError("ground_truth must be a dict or None")
+
+    localization_correct = verdict["predicted_step_id"] == ground_truth["step_id"]
+    failure_type_correct = verdict["failure_type"] == ground_truth["failure_type"]
+
+    reward = config.W_LOCALIZATION * float(localization_correct)
+    reward += config.W_FAILURE_TYPE * float(failure_type_correct)
+    if localization_correct:
+        reward += config.W_EXPLANATION * float(explanation_score)
+    return reward
