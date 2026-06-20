@@ -1,0 +1,17 @@
+[project]
+name = "loophole"
+version = "0.0.0"
+description = "Loop-Auditor RL environment (HUD)"
+requires-python = ">=3.11,<3.13"
+dependencies = [
+    "hud-python>=0.6",
+    "anthropic>=0.40",
+    "jsonschema>=4.0",
+]
+
+[dependency-groups]
+dev = ["pytest>=8.0"]
+
+[tool.pytest.ini_options]
+pythonpath = ["envs"]
+testpaths = ["envs/loop_auditor_env/tests"]
