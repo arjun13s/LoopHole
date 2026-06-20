@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://loophole.dev/schemas/trace.json",
+  "title": "LoopRun",
+  "description": "A single agent loop run (coding domain). Derived from PLAN.md §1.1. FROZEN CONTRACT — reconcile with the team ARCHITECTURE.md §3 at H0 if it differs, then read-only.",
+  "type": "object",
+  "required": ["run_id", "task", "iterations", "planted_failure"],
+  "additionalProperties": false,
+  "properties": {
+    "run_id": { "type": "string" },
+    "task": { "type": "string", "description": "The coding task the worker agent was attempting." },
+    "model": { "type": "string", "description": "Worker model/identifier that produced the run." },
+    "iterations": { "type": "array", "items": { "$ref": "#/$defs/LoopIteration" } },
+    "planted_failure": {
+      "description": "The deterministically planted fault, or null for a clean trace.",
+      "oneOf": [{ "$ref": "#/$defs/PlantedFailure" }, { "type": "null" }]
+    },
+    "metadata": { "type": "object", "additionalProperties": true }
+  },
+  "$defs": {
+    "LoopIteration": {
+      "type": "object",
+      "required": ["index", "steps"],
+      "additionalProperties": false,
+      "properties": {
+        "index": { "type": "integer", "minimum": 0 },
+        "thought": { "type": "string", "description": "Optional planner/reasoning summary for the iteration." },
+        "steps": { "type": "array", "items": { "$ref": "#/$defs/ActionSpan" } },
+        "metadata": { "type": "object", "additionalProperties": true }
+      }
+    },
+    "ActionSpan": {
+      "type": "object",
+      "required": ["step_id", "action_type"],
+      "additionalProperties": false,
+      "properties": {
+        "step_id": {
+          "type": "string",
+          "description": "Stable, canonical, UNIQUE id. Localization is exact-match on this string."
+        },
+        "action_type": {
+          "type": "string",
+          "enum": ["reasoning", "tool_call", "tool_result", "message", "final"]
+        },
+        "tool_name": { "type": "string" },
+        "input": { "type": ["string", "object", "array", "null"], "description": "Tool/action input." },
+        "output": { "type": ["string", "object", "array", "null"], "description": "Tool/action output or observation." },
+        "status": { "type": "string", "enum": ["ok", "error", "timeout"], "default": "ok" },
+        "tokens": { "type": "integer", "minimum": 0, "description": "Tokens attributed to this span (feeds eval-result trace_tokens)." },
+        "metadata": { "type": "object", "additionalProperties": true }
+      }
+    },
+    "PlantedFailure": {
+      "type": "object",
+      "required": ["step_id", "failure_type", "description"],
+      "additionalProperties": false,
+      "properties": {
+        "step_id": {
+          "type": "string",
+          "description": "step_id of the ActionSpan where the fault lives. symptom == cause: locally identifiable at this exact step."
+        },
+        "failure_type": {
+          "type": "string",
+          "enum": ["resource_misuse", "tool_misuse", "routing", "safety"]
+        },
+        "description": { "type": "string" }
+      }
+    }
+  }
+}

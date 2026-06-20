@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://loophole.dev/schemas/eval_result.json",
+  "title": "EvalResult",
+  "description": "One record per trace per model — what the dashboard reads. PLAN.md §1.3. FROZEN CONTRACT.",
+  "type": "object",
+  "required": [
+    "run_id",
+    "model",
+    "localization_correct",
+    "failure_type_correct",
+    "explanation_score",
+    "reward",
+    "trace_tokens",
+    "auditor_tokens"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "run_id": { "type": "string" },
+    "model": { "type": "string", "enum": ["base", "trained"] },
+    "localization_correct": { "type": "boolean" },
+    "failure_type_correct": { "type": "boolean" },
+    "explanation_score": { "type": "number", "minimum": 0.0, "maximum": 1.0 },
+    "reward": { "type": "number" },
+    "trace_tokens": { "type": "integer", "minimum": 0 },
+    "auditor_tokens": { "type": "integer", "minimum": 0 }
+  }
+}
