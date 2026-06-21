@@ -147,6 +147,25 @@ def test_malformed_raw_verdict_parse_failure_bucket():
     assert any("no JSON object" in item for item in record["evidence"])
 
 
+def test_sidecar_unparsed_signal_overrides_dashboard_safe_core():
+    record = self_improve.analyze_eval_record(
+        _eval(run_id="parse-fail", reward=0.0),
+        verdict_row={
+            "run_id": "parse-fail",
+            "fault_present": False,
+            "predicted_step_id": None,
+            "failure_type": None,
+            "explanation": "",
+            "proposed_fix": None,
+            "signals": {"verdict_parsed": False, "raw_present": True},
+        },
+        trace=_trace(run_id="parse-fail", planted_failure=None),
+    )
+
+    assert "parse_failure" in record["buckets"]
+    assert any("raw auditor verdict did not parse" in item for item in record["evidence"])
+
+
 def test_artifact_miss_when_rich_trace_has_no_artifact_tool_usage():
     record = self_improve.analyze_eval_record(
         _eval(run_id="task__tool_misuse", reward=0.0),
@@ -164,6 +183,50 @@ def test_artifact_miss_when_rich_trace_has_no_artifact_tool_usage():
 
     assert "artifact_miss" in record["buckets"]
     assert record["recommended_fix_type"] == "artifact_inspection"
+
+
+def test_artifact_miss_uses_sidecar_signal_counts():
+    record = self_improve.analyze_eval_record(
+        _eval(run_id="task__routing", reward=0.0),
+        verdict_row={
+            "run_id": "task__routing",
+            "verdict": _verdict(predicted_step_id="a1"),
+            "signals": {
+                "verdict_parsed": True,
+                "artifact_tool_calls": 0,
+                "inspection_tool_calls": 2,
+            },
+        },
+        trace=_trace(
+            _bug(),
+            run_id="task__routing",
+            metadata={"case_dir": "envs/loop_auditor_env/rich_cases/task/routing"},
+        ),
+    )
+
+    assert "artifact_miss" in record["buckets"]
+
+
+def test_artifact_hit_from_sidecar_signal_suppresses_artifact_miss():
+    record = self_improve.analyze_eval_record(
+        _eval(run_id="task__routing", reward=0.0),
+        verdict_row={
+            "run_id": "task__routing",
+            "verdict": _verdict(predicted_step_id="a1"),
+            "signals": {
+                "verdict_parsed": True,
+                "artifact_tool_calls": 1,
+                "inspection_tool_calls": 2,
+            },
+        },
+        trace=_trace(
+            _bug(),
+            run_id="task__routing",
+            metadata={"case_dir": "envs/loop_auditor_env/rich_cases/task/routing"},
+        ),
+    )
+
+    assert "artifact_miss" not in record["buckets"]
 
 
 def test_report_helpers_write_jsonl_and_markdown(tmp_path):

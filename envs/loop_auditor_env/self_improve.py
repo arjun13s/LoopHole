@@ -328,6 +328,12 @@ def _classify_from_eval_only(
 def _parse_verdict(row: Any) -> tuple["dict | None", "str | None"]:
     if row is None:
         return None, None
+    if isinstance(row, dict):
+        signals = row.get("signals")
+        if isinstance(signals, dict) and signals.get("verdict_parsed") is False:
+            if signals.get("raw_present") is False:
+                return None, "parse failure: auditor produced no verdict text"
+            return None, "parse failure: raw auditor verdict did not parse"
     raw = _verdict_payload(row)
     if raw is None:
         return None, "parse failure: verdict sidecar has no verdict/raw output field"
@@ -416,6 +422,12 @@ def _artifact_miss(eval_record, verdict_row, verdict, trace, reward: float) -> b
 def _artifact_usage(row: Any) -> tuple[bool, bool]:
     if not isinstance(row, dict):
         return False, False
+    signals = row.get("signals")
+    if isinstance(signals, dict):
+        artifact_calls = signals.get("artifact_tool_calls")
+        inspection_calls = signals.get("inspection_tool_calls")
+        if artifact_calls is not None or inspection_calls is not None:
+            return True, int(artifact_calls or 0) > 0
     for key in ("tool_calls", "tools", "used_tools", "actions"):
         if key not in row:
             continue
