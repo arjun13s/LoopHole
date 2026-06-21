@@ -60,6 +60,27 @@ def test_trained_pending_shows_no_misleading_zero():
     assert "-1.00" not in out and "-100%" not in out  # no fabricated negative delta
 
 
+def test_trained_only_real_eval_shows_base_pending():
+    # P2's real HUD artifacts are trained-only (no base side yet): the Base column
+    # must read "pending", never a fabricated 0% that implies base scored zero.
+    trained_only = [
+        {"localization_correct": True, "failure_type_correct": True, "explanation_score": 0.5,
+         "reward": 1.5, "trace_tokens": 0, "auditor_tokens": 2400, "model": "trained",
+         "run_id": "inventory_total__routing"},
+        {"localization_correct": False, "failure_type_correct": True, "explanation_score": 0.0,
+         "reward": 0.0, "trace_tokens": 0, "auditor_tokens": 2400, "model": "trained",
+         "run_id": "inventory_total__wrong_file_edit"},
+    ]
+    out = _capture(render.dashboard(trained_only, {}, {}, source_label="real held-out eval"))
+    assert "base baseline pending" in out.lower()  # headline names the missing side
+    assert "pending" in out.lower()
+    # Per-fault table still renders (run_id fallback) incl. wrong_file_edit.
+    assert "Localization by fault type" in out
+    assert "wrong_file_edit" in out
+    # No fabricated base delta / no "0%→" base-vs-trained implication.
+    assert "→" not in out
+
+
 def test_token_chart_marks_trained_cheaper():
     base = render.model_mod.aggregate([
         {"localization_correct": False, "failure_type_correct": False, "explanation_score": 0.0,

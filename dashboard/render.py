@@ -41,25 +41,38 @@ def _signed_tokens(delta: int) -> Text:
 _PENDING = Text("— pending", style=_DIM)
 
 
-def _is_pending(trained: model_mod.Aggregate) -> bool:
-    """No trained records yet (e.g. base-only real run) — don't fake a 0% column."""
-    return trained.n == 0
+def _missing(agg: model_mod.Aggregate) -> bool:
+    """A side with no records — render it as "pending", never a fake 0% column."""
+    return agg.n == 0
+
+
+def _trained_buggy_localization(trained: model_mod.Aggregate, fault_rows: list) -> float:
+    """Trained localization over BUGGY traces only (drives the 'every fault' claim)."""
+    buggy = [r for r in fault_rows if r.fault_type != "clean"]
+    bn = sum(r.n for r in buggy)
+    return sum(r.trained_localization * r.n for r in buggy) / bn if bn else trained.localization_accuracy
 
 
 def summary_table(base: model_mod.Aggregate, trained: model_mod.Aggregate) -> Table:
     """The money-shot: base vs trained vs Δ across every metric.
 
-    When the trained side is absent (n == 0) the Trained column reads "pending"
-    instead of a misleading 0% with a negative Δ.
+    Either side may be absent (n == 0) — e.g. a real trained-only run before the
+    base baseline lands, or vice versa. An absent side's column (and the Δ) read
+    "pending" instead of a misleading 0% / huge delta.
     """
-    pending = _is_pending(trained)
+    base_missing, trained_missing = _missing(base), _missing(trained)
     d = model_mod.delta(base, trained)
     t = Table(title="Base vs Trained Auditor  (held-out traces)", box=box.ROUNDED, title_style="bold")
     t.add_column("Metric"); t.add_column("Base", justify="right")
     t.add_column("Trained", justify="right"); t.add_column("Δ", justify="right")
 
     def row(label, base_str, trained_str, delta_cell):
-        t.add_row(label, base_str, _PENDING if pending else trained_str, _PENDING if pending else delta_cell)
+        t.add_row(
+            label,
+            _PENDING if base_missing else base_str,
+            _PENDING if trained_missing else trained_str,
+            _PENDING if (base_missing or trained_missing) else delta_cell,
+        )
 
     row("Localization accuracy", _pct(base.localization_accuracy), _pct(trained.localization_accuracy), _signed(d.localization_accuracy))
     row("Failure-type accuracy", _pct(base.failure_type_accuracy), _pct(trained.failure_type_accuracy), _signed(d.failure_type_accuracy))
@@ -72,11 +85,16 @@ def summary_table(base: model_mod.Aggregate, trained: model_mod.Aggregate) -> Ta
 def headline(base: model_mod.Aggregate, trained: model_mod.Aggregate, fault_rows: list) -> Panel:
     """One-line takeaway banner — the conclusion before the detail.
 
-    Honest framing: states measured localization/reward/auditor-token numbers. The
-    "catches every planted fault" phrasing is only used when trained localization on
-    BUGGY traces is actually 100%.
+    Honest framing: states only measured numbers. The "catches every planted fault"
+    phrasing is used only when trained localization on BUGGY traces is actually 100%,
+    and the "cheaper" claim only when a base baseline exists to compare against.
     """
-    if _is_pending(trained):
+    base_missing, trained_missing = _missing(base), _missing(trained)
+
+    if base_missing and trained_missing:
+        return Panel(Text("No eval records loaded.", style="bold"), box=box.HEAVY, border_style=_DIM)
+
+    if trained_missing:  # base-only baseline, trained not yet run
         line1 = Text("Base auditor baseline — trained run pending", style="bold")
         line2 = Text(
             f"Localization {base.localization_accuracy:.0%} · reward {base.mean_reward:.2f} · "
@@ -85,12 +103,19 @@ def headline(base: model_mod.Aggregate, trained: model_mod.Aggregate, fault_rows
         )
         return Panel(Group(line1, line2), box=box.HEAVY, border_style=_DIM)
 
-    buggy = [r for r in fault_rows if r.fault_type != "clean"]
-    bn = sum(r.n for r in buggy)
-    trained_buggy = sum(r.trained_localization * r.n for r in buggy) / bn if bn else trained.localization_accuracy
-    saving = (base.total_auditor_tokens - trained.total_auditor_tokens) / base.total_auditor_tokens if base.total_auditor_tokens else 0.0
+    trained_buggy = _trained_buggy_localization(trained, fault_rows)
     verdict = "catches every planted fault" if trained_buggy >= 0.999 else f"localizes {trained_buggy:.0%} of planted faults"
 
+    if base_missing:  # trained-only real eval, base baseline not yet run
+        line1 = Text("Trained auditor ", style="bold") + Text(verdict, style=_GOOD)
+        line2 = Text(
+            f"Localization {trained.localization_accuracy:.0%} · failure-type {trained.failure_type_accuracy:.0%} · "
+            f"reward {trained.mean_reward:.2f} · base baseline pending",
+            style=_DIM,
+        )
+        return Panel(Group(line1, line2), box=box.HEAVY, border_style=_GOOD)
+
+    saving = (base.total_auditor_tokens - trained.total_auditor_tokens) / base.total_auditor_tokens if base.total_auditor_tokens else 0.0
     line1 = Text("Trained auditor ", style="bold") + Text(verdict, style=_GOOD)
     if saving > 0:
         line1 += Text(f" — and audits {saving:.0%} cheaper.", style="bold")
@@ -115,7 +140,10 @@ def per_fault_table(fault_rows: list) -> Table | None:
     t.add_column("Fault type"); t.add_column("n", justify="right")
     t.add_column("Base", justify="right"); t.add_column("Trained", justify="right"); t.add_column("Δ", justify="right")
     for r in fault_rows:
-        t.add_row(r.fault_type, str(r.n), _pct(r.base_localization), _pct(r.trained_localization), _signed(r.delta))
+        base_cell = _PENDING if r.base_n == 0 else _pct(r.base_localization)
+        trained_cell = _PENDING if r.trained_n == 0 else _pct(r.trained_localization)
+        delta_cell = _PENDING if (r.base_n == 0 or r.trained_n == 0) else _signed(r.delta)
+        t.add_row(r.fault_type, str(r.n), base_cell, trained_cell, delta_cell)
     return t
 
 
@@ -125,20 +153,20 @@ def token_chart(base: model_mod.Aggregate, trained: model_mod.Aggregate) -> Pane
     NOT framed as 'tokens saved' — there is no live-loop saving in the floor; the
     dramatic framing is reserved for the Design-Y gate head if it ever lands.
     """
-    pending = _is_pending(trained)
     width = 34
     peak = max(base.total_auditor_tokens, trained.total_auditor_tokens, 1)
     rows = []
     for label, agg, style in (("base", base, "#EF4444"), ("trained", trained, "#22C55E")):
-        if label == "trained" and pending:
+        if _missing(agg):  # absent side: don't draw a zero-length "0" bar
             rows.append(Text(f"{label:>8}  ") + _PENDING)
             continue
         filled = round(width * agg.total_auditor_tokens / peak)
         bar = Text("█" * filled, style=style) + Text("░" * (width - filled), style=_DIM)
         rows.append(Text(f"{label:>8}  ") + bar + Text(f"  {agg.total_auditor_tokens}"))
-    # Same traces audited by both models; report the cost basis once (base if pending).
-    audited = base.total_trace_tokens if pending else trained.total_trace_tokens
-    rows.append(Text(f"\nTrace tokens audited (held-out set): {audited}", style=_DIM))
+    # Same traces audited by both models; report the cost basis once (whichever side
+    # we have). The HUD eval doesn't attribute per-step tokens, so 0 reads as "n/a".
+    audited = trained.total_trace_tokens or base.total_trace_tokens
+    rows.append(Text(f"\nTrace tokens audited (held-out set): {audited or 'n/a'}", style=_DIM))
     return Panel(Group(*rows), title="Auditor token cost  (lower = cheaper audit)", box=box.ROUNDED)
 
 
