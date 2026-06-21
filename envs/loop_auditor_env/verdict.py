@@ -68,6 +68,13 @@ def validate_verdict(obj: dict) -> dict:
         if isinstance(value, str):
             normalized[key] = value.strip()
 
+    # Lenient failure_type: coerce known aliases / case-variants onto the enum.
+    # An unknown type is kept as-is (not nulled) and is NOT a hard error below —
+    # it should cost only the type term in compute_reward, never discard a
+    # correct localization. The structural clean/fault checks still apply.
+    if "failure_type" in normalized:
+        normalized["failure_type"] = config.normalize_failure_type(normalized["failure_type"])
+
     schema = json.loads(_SCHEMA_PATH.read_text())
     required = set(schema["required"])
     allowed = set(schema["properties"])
@@ -91,6 +98,8 @@ def validate_verdict(obj: dict) -> dict:
             errors.append(f"{key}: {value!r} is not of type {allowed_types!r}")
             continue
         if "enum" in rules and value not in rules["enum"]:
+            if key == "failure_type":
+                continue  # lenient: an out-of-enum type is a soft mismatch, not a reject
             errors.append(f"{key}: {value!r} is not one of {rules['enum']!r}")
     if normalized.get("fault_present") is False:
         if normalized.get("predicted_step_id") is not None:

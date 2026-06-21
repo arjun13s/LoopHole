@@ -86,17 +86,45 @@ def test_parse_verdict_malformed_raises():
         parse_verdict("there is no json object here")
 
 
-def test_validate_verdict_reports_schema_errors():
-    with pytest.raises(ValueError, match="failure_type"):
-        validate_verdict(
-            {
-                "fault_present": True,
-                "predicted_step_id": "iter0.step1.bad",
-                "failure_type": "not-a-type",
-                "explanation": "Bad enum.",
-                "proposed_fix": "Use a valid enum.",
-            }
-        )
+def test_validate_verdict_keeps_unknown_failure_type_lenient():
+    # An out-of-enum failure_type is NO LONGER a hard reject: a complete fault
+    # verdict survives validation (the wrong type only costs the type term in
+    # compute_reward, never the correct localization).
+    v = validate_verdict(
+        {
+            "fault_present": True,
+            "predicted_step_id": "iter0.step1.bad",
+            "failure_type": "not-a-type",
+            "explanation": "Unknown type.",
+            "proposed_fix": "Pick a valid enum.",
+        }
+    )
+    assert v["failure_type"] == "not-a-type"  # kept as-is, scored as a mismatch
+
+
+def test_validate_verdict_coerces_alias_and_case():
+    aliased = validate_verdict(
+        {
+            "fault_present": True,
+            "predicted_step_id": "iter0.step1.bad",
+            "failure_type": "Test_Failure",
+            "explanation": "Acted on failing tests.",
+            "proposed_fix": "Re-run the focused tests first.",
+        }
+    )
+    assert aliased["failure_type"] == "tool_misuse"  # alias -> canonical enum
+
+    cased = dict(VALID_VERDICT)
+    cased["failure_type"] = "ROUTING"
+    assert validate_verdict(cased)["failure_type"] == "routing"  # case-variant -> canonical
+
+    spaced = dict(VALID_VERDICT)
+    spaced["failure_type"] = "Tool Misuse"
+    assert validate_verdict(spaced)["failure_type"] == "tool_misuse"
+
+    hyphenated = dict(VALID_VERDICT)
+    hyphenated["failure_type"] = "wrong-file-edit"
+    assert validate_verdict(hyphenated)["failure_type"] == "wrong_file_edit"
 
 
 def test_validate_verdict_rejects_extra_fields():
