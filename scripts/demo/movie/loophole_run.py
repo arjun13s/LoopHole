@@ -98,9 +98,13 @@ def main() -> int:
     user_prompt = " ".join(a for a in sys.argv[1:] if not a.startswith("-")) or "build me a note taking app"
     ws = setup_workspace()
 
+    # Wipe the shell invocation off-screen so the recording starts clean.
+    console.clear()
     console.print()
-    typeline(user_prompt)
-    time.sleep(0.5 * SPEED)
+    # LOOPHOLE_NO_PROMPT=1 hides the prompt echo too (composite your own in post).
+    if os.environ.get("LOOPHOLE_NO_PROMPT") != "1":
+        typeline(user_prompt)
+        time.sleep(0.5 * SPEED)
 
     # 1) BUILD — real Claude implements the app to satisfy the visible tests.
     banner("BUILDING", "Claude is writing the note app…", "cyan")
