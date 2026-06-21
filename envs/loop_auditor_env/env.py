@@ -162,6 +162,7 @@ def _charge_output(category: str, value) -> None:
 
 # --- agent-facing inspection tools (served via the MCP capability) -----------
 async def get_trace_summary() -> str:
+    """Compact summary of the whole trace under audit (iterations, step_ids, short descriptors)."""
     if not _enabled("get_trace_summary"):
         return "tool disabled for this scenario"
     out = tools_mod.get_trace_summary(_run["trace_view"])
@@ -170,6 +171,7 @@ async def get_trace_summary() -> str:
 
 
 async def get_iteration(index: int) -> str:
+    """Return full detail (JSON) of loop iteration `index`."""
     if not _enabled("get_iteration"):
         return "tool disabled for this scenario"
     try:
@@ -181,6 +183,7 @@ async def get_iteration(index: int) -> str:
 
 
 async def get_step(step_id: str) -> str:
+    """Return full detail (JSON) of the step with `step_id`."""
     if not _enabled("get_step"):
         return "tool disabled for this scenario"
     try:
@@ -192,6 +195,7 @@ async def get_step(step_id: str) -> str:
 
 
 async def search_steps(query: str) -> str:
+    """Return steps (JSON) whose tool_name/input/output contains `query` (case-insensitive)."""
     if not _enabled("search_steps"):
         return "tool disabled for this scenario"
     out = json.dumps(tools_mod.search_steps(_run["trace_view"], query))
@@ -200,6 +204,7 @@ async def search_steps(query: str) -> str:
 
 
 async def get_errors() -> str:
+    """Return steps (JSON) with an error or timeout status (often near the fault)."""
     if not _enabled("get_errors"):
         return "tool disabled for this scenario"
     out = json.dumps(tools_mod.get_errors(_run["trace_view"]))
@@ -208,6 +213,7 @@ async def get_errors() -> str:
 
 
 async def get_step_io(step_id: str) -> str:
+    """Return the untruncated input/output (JSON) of the step `step_id`."""
     if not _enabled("get_step_io"):
         return "tool disabled for this scenario"
     try:
@@ -219,12 +225,14 @@ async def get_step_io(step_id: str) -> str:
 
 
 async def get_budget() -> dict:
+    """Return tokens spent/remaining, the per-category breakdown, and the run's lambda."""
     m = _run["meter"]
     return {"spent": m.spent, "remaining": m.remaining, "breakdown": dict(m.breakdown),
             "lambda": _run["scenario"].lambda_tokens if _run["scenario"] else 0.0}
 
 
 async def get_solution() -> str:
+    """Return the task's reference solution (EXPENSIVE: large token cost). Compare the trace against it to localize where the worker deviated."""
     if not _enabled("get_solution"):
         return "tool disabled for this scenario"
     _run["meter"].charge(config.SOLUTION_COST, "solution")  # expensive on purpose
