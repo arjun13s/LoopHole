@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# build — Act 1 entrypoint. Type this on camera with the prompt, e.g.:
+#   ./scripts/demo/build "build me a note taking app"
+# Plays the "without LoopHole" pain montage. Tune speed with LOOPHOLE_SPEED.
+set -euo pipefail
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+PY="$REPO_ROOT/.venv/bin/python"; [ -x "$PY" ] || PY="python3"
+exec "$PY" "$REPO_ROOT/scripts/demo/movie/act1_montage.py" "${@:-build me a note taking app}"
