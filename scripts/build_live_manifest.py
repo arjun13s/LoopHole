@@ -30,6 +30,14 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 LIVE = REPO_ROOT / "generated_traces" / "live_qwen"
 REL = "generated_traces/live_qwen"
 
+# Fault types whose injected fault is RECOVERED in-trace (error -> fix -> tests
+# pass -> submit), making the trace indistinguishable from healthy self-correction.
+# Per the auditor rubric ("a failing test the agent then fixes is CLEAN") these are
+# mislabeled as buggy and would train the model to over-flag healthy recovery. We
+# keep the trace as a CLEAN hard negative (auditor must NOT flag it) by pointing the
+# row at the instance's clean ground truth instead of the buggy label.
+CLEAN_RELABEL_TYPES = {"tool_misuse"}
+
 
 def _instance(case_id: str) -> str:
     """date_range_boundary__live_003__routing -> live_003 ; ...__live_003 -> live_003."""
@@ -54,12 +62,21 @@ def build_rows() -> list[dict]:
     for gt in sorted((LIVE / "labeled_ground_truth").glob("*.json")):
         cid = gt.stem  # date_range_boundary__live_000__resource_misuse
         base, ftype = cid.rsplit("__", 1)
-        rows.append({
-            "case_id": cid,
-            "case_dir": f"{REL}/labeled_cases/{base}/{ftype}",
-            "failure_type": ftype,
-            "ground_truth": f"{REL}/labeled_ground_truth/{cid}.json",
-        })
+        if ftype in CLEAN_RELABEL_TYPES:
+            rows.append({
+                "case_id": cid,
+                "case_dir": f"{REL}/labeled_cases/{base}/{ftype}",
+                "failure_type": "clean",
+                "relabeled_from": ftype,  # traceability: was a (recovered) tool_misuse
+                "ground_truth": f"{REL}/clean_ground_truth/{base}.json",
+            })
+        else:
+            rows.append({
+                "case_id": cid,
+                "case_dir": f"{REL}/labeled_cases/{base}/{ftype}",
+                "failure_type": ftype,
+                "ground_truth": f"{REL}/labeled_ground_truth/{cid}.json",
+            })
     return rows
 
 

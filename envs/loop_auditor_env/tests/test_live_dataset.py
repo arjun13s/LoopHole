@@ -15,7 +15,9 @@ os.environ.setdefault("LOOP_AUDITOR_JUDGE_STUB", "1")
 from loop_auditor_env import config, eval_harness, rich_loader  # noqa: E402
 
 LIVE = config.LIVE_TASKSET_DIR
-FAULT_TYPES = {"resource_misuse", "tool_misuse", "routing", "wrong_file_edit"}
+# tool_misuse is relabeled to a CLEAN hard negative (recovered blind-patch); the
+# remaining genuinely-unrecovered fault types stay buggy.
+BUGGY_TYPES = {"resource_misuse", "routing", "wrong_file_edit"}
 
 
 def _load(split):
@@ -47,7 +49,17 @@ def test_live_heldout_loads_with_all_fault_types():
         pf = t["planted_failure"]
         assert pf["step_id"] and pf["failure_type"]
         assert isinstance(pf.get("fix"), dict) and pf["fix"], f"{t['run_id']} missing structured fix"
-    assert FAULT_TYPES.issubset({t["planted_failure"]["failure_type"] for t in buggy})
+    assert BUGGY_TYPES.issubset({t["planted_failure"]["failure_type"] for t in buggy})
+
+
+def test_tool_misuse_cases_are_clean_hard_negatives():
+    """The recovered blind-patch (tool_misuse) trace must load as CLEAN — a
+    hard negative the auditor must not flag, not a planted fault."""
+    for split in ("train", "heldout"):
+        tm = [t for t in _load(split) if t["run_id"].endswith("__tool_misuse")]
+        assert tm, f"no tool_misuse cases in {split}"
+        for t in tm:
+            assert t.get("planted_failure") is None, f"{t['run_id']} should be clean"
 
 
 def test_live_train_and_heldout_are_disjoint():
