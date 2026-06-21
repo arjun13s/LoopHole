@@ -92,18 +92,57 @@ RICH_TASKSET_DIR = _resolve_rich_taskset_dir()
 MODEL = os.environ.get("LOOP_AUDITOR_MODEL", "loophole-evalagent")
 
 # --- auditor output controls (keep the verdict from being cut off) -----------
-# The verdict is a tiny JSON object, but Qwen3-style models emit <think> tokens;
-# an uncapped ramble can exhaust the server's output budget before the JSON
-# closes -> unparseable -> 0 reward. We always cap output (the openai_compatible
-# model has no max_tokens config field, so the cap rides in completion_kwargs).
-#
-# THINK=0 (default) disables reasoning for a short, deterministic verdict on the
-# simple taskset; THINK=1 keeps <think> with a bigger cap for harder tasksets.
-# Flip with LOOP_AUDITOR_THINK=1; override the cap with LOOP_AUDITOR_MAX_TOKENS.
-AUDITOR_THINK = os.environ.get("LOOP_AUDITOR_THINK", "0").strip().lower() in ("1", "true", "yes", "on")
-AUDITOR_MAX_TOKENS = int(
-    os.environ.get("LOOP_AUDITOR_MAX_TOKENS", "2048" if AUDITOR_THINK else "512")
+# The verdict is a tiny JSON object, but Qwen3-style models can emit <think>
+# tokens. Training/GRPO wants cheap, parse-stable JSON. Eval can spend more
+# auditor tokens to reduce expensive coding-agent escalation. Mode-specific env
+# vars win; the old LOOP_AUDITOR_THINK / LOOP_AUDITOR_MAX_TOKENS remain broad
+# overrides for both modes.
+_TRUE_VALUES = ("1", "true", "yes", "on")
+
+
+def _env_bool(name: str, default: bool) -> bool:
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() in _TRUE_VALUES
+
+
+def _env_int(name: str, default: int) -> int:
+    return int(os.environ.get(name, str(default)))
+
+
+_GLOBAL_AUDITOR_THINK = os.environ.get("LOOP_AUDITOR_THINK")
+_GLOBAL_AUDITOR_MAX_TOKENS = os.environ.get("LOOP_AUDITOR_MAX_TOKENS")
+
+AUDITOR_TRAIN_THINK = _env_bool(
+    "LOOP_AUDITOR_TRAIN_THINK",
+    (_GLOBAL_AUDITOR_THINK or "0").strip().lower() in _TRUE_VALUES,
 )
+AUDITOR_EVAL_THINK = _env_bool(
+    "LOOP_AUDITOR_EVAL_THINK",
+    (_GLOBAL_AUDITOR_THINK or "1").strip().lower() in _TRUE_VALUES,
+)
+AUDITOR_TRAIN_MAX_TOKENS = _env_int(
+    "LOOP_AUDITOR_TRAIN_MAX_TOKENS",
+    int(_GLOBAL_AUDITOR_MAX_TOKENS or (2048 if AUDITOR_TRAIN_THINK else 512)),
+)
+AUDITOR_EVAL_MAX_TOKENS = _env_int(
+    "LOOP_AUDITOR_EVAL_MAX_TOKENS",
+    int(_GLOBAL_AUDITOR_MAX_TOKENS or (4096 if AUDITOR_EVAL_THINK else 1024)),
+)
+
+# Back-compat aliases for older tests/scripts that read the single-mode knobs.
+AUDITOR_THINK = AUDITOR_TRAIN_THINK
+AUDITOR_MAX_TOKENS = AUDITOR_TRAIN_MAX_TOKENS
+
+
+def auditor_output_controls(profile: str) -> dict:
+    """Return think/max_tokens controls for the train or eval auditor profile."""
+    if profile == "train":
+        return {"think": AUDITOR_TRAIN_THINK, "max_tokens": AUDITOR_TRAIN_MAX_TOKENS}
+    if profile == "eval":
+        return {"think": AUDITOR_EVAL_THINK, "max_tokens": AUDITOR_EVAL_MAX_TOKENS}
+    raise ValueError(f"unknown auditor profile: {profile!r}")
 
 # --- GRPO knobs --------------------------------------------------------------
 GROUP_SIZE = int(os.environ.get("LOOP_AUDITOR_GROUP_SIZE", "8"))
