@@ -1,7 +1,10 @@
 """Pure GRPO reward (PLAN.md §1.4 / schemas/reward_spec.json).
 
-OWNER: Codex. PURE: no judge/model/network calls. The explanation score is
-computed by judge.py (Claude) and INJECTED via ``explanation_score``.
+OWNER: Codex. PURE: no judge/model/network calls. The ``explanation_score`` is
+INJECTED by the caller; in the live path it is computed DETERMINISTICALLY by
+fix_grader.grade_fix (fix-by-comparison) and zeroed by citation_gate on a
+fabricated step reference — the LLM judge (judge.py) is an eval-time-only
+diagnostic and is NOT part of the reward.
 """
 
 from __future__ import annotations
