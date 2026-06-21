@@ -5,7 +5,7 @@ import json
 from loop_auditor_env import config, rich_loader
 from loop_auditor_env import verdict as V
 
-_STEP_KEYS = {"step_id", "action_type", "tool_name", "input", "output", "status", "tokens"}
+_STEP_KEYS = {"step_id", "action_type", "tool_name", "input", "output", "status"}
 
 
 def _heldout():

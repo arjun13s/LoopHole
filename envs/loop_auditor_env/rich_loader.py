@@ -50,6 +50,10 @@ def _normalize_step(s: dict) -> dict:
     tool = s.get("tool_name")
     args = s.get("args")
     result = s.get("result") or {}
+    # No `tokens` field: a per-step token count is itself a giveaway (the faulty
+    # resource_misuse read is conspicuously large) and tokens are out of the reward
+    # (LAMBDA_TOKENS=0). The auditor judges resource use from the path + the actual
+    # file via read_artifact, not a handed-over number.
     return {
         "step_id": s["step_id"],
         "action_type": "final" if tool == "submit" else "tool_call",
@@ -57,7 +61,6 @@ def _normalize_step(s: dict) -> dict:
         "input": _neutral_input(args),
         "output": _neutral_output(tool, args, result),
         "status": result.get("status"),
-        "tokens": int(s.get("tokens", 0) or 0),
     }
 
 
