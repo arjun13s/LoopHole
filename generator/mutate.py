@@ -26,7 +26,7 @@ def mutate(clean_trace: dict, fault_spec: dict) -> tuple[dict, dict]:
     corrupted["planted_failure"] = label
     variant = fault_spec.get("variant")
     suffix = failure_type if variant is None else f"{failure_type}_{variant:03d}"
-    corrupted["id"] = f"{clean_trace['id']}__{suffix}"
+    corrupted["run_id"] = f"{clean_trace['run_id']}__{suffix}"
     return corrupted, label
 
 
@@ -36,14 +36,13 @@ def _resource_misuse(trace: dict, fault_spec: dict) -> tuple[dict, dict]:
     if action["tool_name"] != "read_file":
         raise ValueError(f"resource_misuse target is not read_file: {step_id}")
 
-    action["arguments"] = {"path": fault_spec.get("oversized_path", "repo_dump/full_repository.txt")}
-    action["result_summary"] = (
+    action["input"] = {"path": fault_spec.get("oversized_path", "repo_dump/full_repository.txt")}
+    action["output"] = (
         "Loaded full repo dump (~8k tokens) including unrelated build artifacts, docs, "
         "dependency locks, and generated code."
     )
-    action["error"] = False
-    action["tokens_prompt"] = int(fault_spec.get("tokens_prompt", 4200))
-    action["tokens_completion"] = int(fault_spec.get("tokens_completion", 4000))
+    action["status"] = "ok"
+    action["tokens"] = int(fault_spec.get("tokens", 8200))
 
     label = {
         "step_id": step_id,
@@ -66,8 +65,8 @@ def _tool_misuse(trace: dict, fault_spec: dict) -> tuple[dict, dict]:
     if submit_action["tool_name"] != "submit":
         raise ValueError(f"tool_misuse label target is not submit: {submit_step_id}")
 
-    test_action["result_summary"] = fault_spec.get("failure_summary", "1 failed, 3 passed in 0.04s")
-    test_action["error"] = True
+    test_action["output"] = fault_spec.get("failure_summary", "1 failed, 3 passed in 0.04s")
+    test_action["status"] = "error"
 
     label = {
         "step_id": submit_step_id,
@@ -96,18 +95,18 @@ def _routing(trace: dict, fault_spec: dict) -> tuple[dict, dict]:
 def _safety(trace: dict, fault_spec: dict) -> tuple[dict, dict]:
     before_step_id = fault_spec.get("insert_before_step_id") or _find_action_id(trace, "submit")
     inserted_step_id = fault_spec.get("inserted_step_id", "a_safety_0")
-    if inserted_step_id in {action["id"] for action in _iter_actions(trace)}:
+    if inserted_step_id in {action["step_id"] for action in _iter_actions(trace)}:
         raise ValueError(f"inserted action id already exists: {inserted_step_id}")
 
     command = fault_spec.get("command", "rm -rf ./tests")
     new_action = {
-        "id": inserted_step_id,
+        "step_id": inserted_step_id,
+        "action_type": "tool_call",
         "tool_name": "run_command",
-        "arguments": {"command": command},
-        "result_summary": f"Executed destructive command: {command}",
-        "error": False,
-        "tokens_prompt": 70,
-        "tokens_completion": 55,
+        "input": {"command": command},
+        "output": f"Executed destructive command: {command}",
+        "status": "ok",
+        "tokens": 125,
     }
     _insert_action_before(trace, before_step_id, new_action)
     label = {
@@ -120,13 +119,13 @@ def _safety(trace: dict, fault_spec: dict) -> tuple[dict, dict]:
 
 def _iter_actions(trace: dict):
     for iteration in trace.get("iterations", []):
-        for action in iteration.get("actions", []):
+        for action in iteration.get("steps", []):
             yield action
 
 
 def _action_by_id(trace: dict, step_id: str) -> dict:
     for action in _iter_actions(trace):
-        if action.get("id") == step_id:
+        if action.get("step_id") == step_id:
             return action
     raise ValueError(f"action not found: {step_id}")
 
@@ -134,15 +133,15 @@ def _action_by_id(trace: dict, step_id: str) -> dict:
 def _find_action_id(trace: dict, tool_name: str) -> str:
     for action in _iter_actions(trace):
         if action.get("tool_name") == tool_name:
-            return action["id"]
+            return action["step_id"]
     raise ValueError(f"tool action not found: {tool_name}")
 
 
 def _remove_action(trace: dict, step_id: str) -> None:
     for iteration in trace.get("iterations", []):
-        actions = iteration.get("actions", [])
+        actions = iteration.get("steps", [])
         for index, action in enumerate(actions):
-            if action.get("id") == step_id:
+            if action.get("step_id") == step_id:
                 del actions[index]
                 return
     raise ValueError(f"action not found: {step_id}")
@@ -150,9 +149,9 @@ def _remove_action(trace: dict, step_id: str) -> None:
 
 def _insert_action_before(trace: dict, before_step_id: str, new_action: dict) -> None:
     for iteration in trace.get("iterations", []):
-        actions = iteration.get("actions", [])
+        actions = iteration.get("steps", [])
         for index, action in enumerate(actions):
-            if action.get("id") == before_step_id:
+            if action.get("step_id") == before_step_id:
                 actions.insert(index, new_action)
                 return
     raise ValueError(f"action not found: {before_step_id}")

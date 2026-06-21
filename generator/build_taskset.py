@@ -83,7 +83,7 @@ def _make_split(count: int, bases: list[dict], split_name: str) -> list[dict]:
                 trace = _clone_clean(base, split_name, variant)
             else:
                 trace, _label = mutate(base, fault_spec_for(category, variant))
-                trace["id"] = f"{trace['id']}__{split_name}_{variant:03d}"
+                trace["run_id"] = f"{trace['run_id']}__{split_name}_{variant:03d}"
             validate_trace(trace)
             traces.append(trace)
         serial += category_counts[category]
@@ -92,7 +92,7 @@ def _make_split(count: int, bases: list[dict], split_name: str) -> list[dict]:
 
 def _clone_clean(base: dict, split_name: str, variant: int) -> dict:
     trace = deepcopy(base)
-    trace["id"] = f"{base['id']}__clean__{split_name}_{variant:03d}"
+    trace["run_id"] = f"{base['run_id']}__clean__{split_name}_{variant:03d}"
     validate_trace(trace)
     return trace
 
@@ -121,14 +121,14 @@ def _fault_counts(traces: list[dict]) -> Counter:
 
 
 def _assert_disjoint(train: list[dict], heldout: list[dict]) -> None:
-    train_ids = {trace["id"] for trace in train}
-    heldout_ids = {trace["id"] for trace in heldout}
+    train_ids = {trace["run_id"] for trace in train}
+    heldout_ids = {trace["run_id"] for trace in heldout}
     overlap = train_ids & heldout_ids
     if overlap:
-        raise ValueError(f"train and heldout trace ids overlap: {sorted(overlap)}")
+        raise ValueError(f"train and heldout run_ids overlap: {sorted(overlap)}")
 
-    train_task_ids = {trace["task_id"] for trace in train}
-    heldout_task_ids = {trace["task_id"] for trace in heldout}
+    train_task_ids = {trace["task"] for trace in train}
+    heldout_task_ids = {trace["task"] for trace in heldout}
     task_overlap = train_task_ids & heldout_task_ids
     if task_overlap:
         raise ValueError(f"heldout base tasks appear in train: {sorted(task_overlap)}")

@@ -7,8 +7,7 @@ DEFAULT_FAULT_SPECS = {
         "failure_type": "resource_misuse",
         "target_step_id": "a1",
         "oversized_path": "repo_dump/full_repository.txt",
-        "tokens_prompt": 4200,
-        "tokens_completion": 4000,
+        "tokens": 8200,
         "description": "Loaded full repo dump (~8k tokens) instead of reading the single relevant test file.",
     },
     "tool_misuse": {
@@ -43,8 +42,7 @@ def fault_spec_for(failure_type: str, variant: int = 0) -> dict:
     spec["variant"] = variant
 
     if failure_type == "resource_misuse":
-        spec["tokens_prompt"] += variant % 5
-        spec["tokens_completion"] += variant % 7
+        spec["tokens"] += variant % 11
     elif failure_type == "tool_misuse":
         failed = 1 + (variant % 2)
         passed = 4 - (variant % 2)
