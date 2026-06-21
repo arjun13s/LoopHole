@@ -26,6 +26,7 @@ deterministic reward needs no judge key.
 from __future__ import annotations
 
 import asyncio
+import os
 import sys
 
 try:  # package (pytest) | flat (hud `env:env`)
@@ -58,6 +59,11 @@ async def _run(runtime=None) -> None:
     # Scope the H4 gate to AUDIT tasks: those carry the deterministic §1.4 reward
     # we train the auditor on (gate tasks have a separate reward scale).
     audit_ids = [sid for sid, sc in env_mod._SCENARIOS.items() if sc.mode == "audit"]
+    # Cheap-smoke knob: cap the number of audit tasks (0 = all) so the first
+    # trainer.step can be exercised on 1-2 tasks before a full run.
+    max_tasks = int(os.environ.get("LOOP_AUDITOR_H4_MAX_TASKS", "0"))
+    if max_tasks > 0:
+        audit_ids = audit_ids[:max_tasks]
     taskset = Taskset(name="loop-auditor-audit", tasks=env_mod.build_taskset(audit_ids))
     auditor = agent_mod.build_auditor_agent(config.MODEL)
     trainer = TrainingClient(config.MODEL)
