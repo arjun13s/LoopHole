@@ -1,0 +1,5 @@
+--- a/repo/src/config.py
++++ b/repo/src/config.py
+@@
+-    return False
++    return to_bool(v)
