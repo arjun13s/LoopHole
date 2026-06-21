@@ -10,8 +10,9 @@ dependencies = [
 ]
 
 [dependency-groups]
-dev = ["pytest>=8.0"]
+dev = ["pytest>=8.0", "pytest-asyncio>=0.23.0"]
 
 [tool.pytest.ini_options]
+asyncio_mode = "auto"
 pythonpath = ["envs"]
 testpaths = ["envs/loop_auditor_env/tests"]

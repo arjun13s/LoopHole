@@ -1,0 +1,23 @@
+[project]
+name = "loop-auditor"
+version = "0.1.0"
+description = "Loop-Auditor: a HUD v6 RL environment that audits agent loop traces for a planted fault."
+requires-python = ">=3.11,<3.13"
+dependencies = [
+    "hud-python>=0.6.0",
+    "anthropic>=0.40",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8",
+    "pytest-asyncio>=0.23.0",
+]
+
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+pythonpath = [".."]
+testpaths = ["tests"]
