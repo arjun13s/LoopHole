@@ -40,10 +40,14 @@ render_tui() {
 render_from() {
   local dir="${1:?usage: run_demo.sh --from <results_dir>}"
   local base trained
-  base="$dir/eval_results.base.jsonl";    [ -f "$base" ]    || base="$dir/base.jsonl"
+  base="$dir/eval_results.base.jsonl";       [ -f "$base" ]    || base="$dir/base.jsonl"
   trained="$dir/eval_results.trained.jsonl"; [ -f "$trained" ] || trained="$dir/trained.jsonl"
-  [ -f "$base" ]    || { echo "missing base eval_results in $dir" >&2; exit 1; }
-  [ -f "$trained" ] || { echo "missing trained eval_results in $dir" >&2; exit 1; }
+  [ -f "$base" ] || { echo "missing base eval_results in $dir (run scripts/money_shot_eval.sh first)" >&2; exit 1; }
+
+  # Base is required; trained is OPTIONAL — money_shot_eval.sh produces base-only
+  # until a trained slug exists, and the dashboard renders trained as "pending".
+  local results=("$base")
+  [ -f "$trained" ] && results+=("$trained") || echo ">> [from] no trained eval_results — rendering base-only (trained pending)"
 
   local extra=()
   for v in "$dir/verdicts.base.jsonl" "$dir/verdicts.trained.jsonl" "$dir/verdicts.jsonl"; do
@@ -53,58 +57,31 @@ render_from() {
   [ -n "${LOOP_AUDITOR_TRACES:-}" ] && [ -d "$LOOP_AUDITOR_TRACES" ] && extra+=(--traces "$LOOP_AUDITOR_TRACES")
 
   echo ">> [from] rendering dashboard from $dir"
-  "$DASH_PY" -m dashboard --render --results "$base" "$trained" "${extra[@]}"
+  "$DASH_PY" -m dashboard --render --results "${results[@]}" "${extra[@]}"
 }
 
 render_real() {
-  # --- REAL PATH (gated; needs Person 2's HUD eval wired + base/trained slugs) ---
+  # --- REAL PATH: produce the HUD eval, then render. ---
   #
-  # Contract with Person 2 (envs/loop_auditor_env/eval_harness.py):
-  #   - eval_harness.run_eval(split, model_tag) runs the auditor over the held-out
-  #     split and writes config.EVAL_OUTPUT (a JSONL of eval_result records).
-  #   - The MODEL is selected by env var LOOP_AUDITOR_MODEL (see config.py).
+  # The eval driver is Person 2's scripts/money_shot_eval.sh — the SINGLE source
+  # of truth for running eval_harness.run_eval per model (it loads .env, awaits
+  # the async run_eval with asyncio.run, and writes the dashboard-named files
+  # results/eval_results.<tag>.jsonl + results/verdicts.<tag>.jsonl over the rich
+  # held-out split). We don't reimplement it here — we invoke it and render its
+  # output, so there's no second, divergent eval path to keep in sync.
   #
-  # We therefore run it twice with the two slugs, capturing each output per model.
-  : "${LOOP_AUDITOR_BASE_MODEL:?set LOOP_AUDITOR_BASE_MODEL (base auditor slug)}"
-  : "${LOOP_AUDITOR_TRAINED_MODEL:?set LOOP_AUDITOR_TRAINED_MODEL (HUD-forked trained slug)}"
-
-  # run_eval(split) requires the env to have LOADED that split (config.DATASET);
-  # it raises if they disagree. The real audit set is Person 1's rich held-out
-  # split. Override both together via LOOP_AUDITOR_SPLIT if needed.
-  SPLIT="${LOOP_AUDITOR_SPLIT:-rich_heldout}"
-
-  # Team env (hud-python etc.) — prefer uv if present, else python3.
-  TEAM_RUN=(python3)
-  command -v uv >/dev/null 2>&1 && TEAM_RUN=(uv run python)
-
-  mkdir -p "$RESULTS_DIR"
-  EVAL_OUT="$REPO_ROOT/envs/loop_auditor_env/eval_results.jsonl"
-
-  for pair in "base:$LOOP_AUDITOR_BASE_MODEL" "trained:$LOOP_AUDITOR_TRAINED_MODEL"; do
-    tag="${pair%%:*}"; slug="${pair#*:}"
-    echo ">> [real] eval ($tag) on $slug (split=$SPLIT)"
-    LOOP_AUDITOR_MODEL="$slug" LOOP_AUDITOR_DATASET="$SPLIT" "${TEAM_RUN[@]}" -c \
-      "from envs.loop_auditor_env import eval_harness as e; e.run_eval(split='$SPLIT', model_tag='$tag')"
-    cp "$EVAL_OUT" "$RESULTS_DIR/eval_results.$tag.jsonl"
-  done
-
-  # Optional verdict sidecar (graceful if Person 2 has not added it yet).
-  VERDICTS_ARG=()
-  [ -f "$RESULTS_DIR/verdicts.jsonl" ] && VERDICTS_ARG=(--verdicts "$RESULTS_DIR/verdicts.jsonl")
-
-  # Trace source for replay: Person 1's held-out set when available, else bundled.
-  TRACES="${LOOP_AUDITOR_TRACES:-$REPO_ROOT/dashboard/fixtures/traces}"
-
-  echo ">> [real] rendering dashboard"
-  "$DASH_PY" -m dashboard --render \
-    --results "$RESULTS_DIR/eval_results.base.jsonl" "$RESULTS_DIR/eval_results.trained.jsonl" \
-    --traces "$TRACES" "${VERDICTS_ARG[@]}"
+  #   ./scripts/run_demo.sh --real                       # slugs from .env
+  #   ./scripts/run_demo.sh --real BASE_SLUG             # base only
+  #   ./scripts/run_demo.sh --real BASE_SLUG TRAINED_SLUG
+  echo ">> [real] producing eval via scripts/money_shot_eval.sh"
+  "$REPO_ROOT/scripts/money_shot_eval.sh" "$@"
+  render_from "$RESULTS_DIR"
 }
 
 case "$MODE" in
   --mock|"") render_mock ;;
   --tui)     render_tui ;;
   --from)    render_from "${2:?usage: $0 --from <results_dir>}" ;;
-  --real)    render_real ;;
+  --real)    render_real "${@:2}" ;;
   *) echo "usage: $0 [--mock|--tui|--from <dir>|--real]" >&2; exit 2 ;;
 esac
