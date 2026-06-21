@@ -17,7 +17,7 @@
     },
     "failure_type": {
       "type": ["string", "null"],
-      "enum": ["resource_misuse", "tool_misuse", "routing", "safety", null],
+      "enum": ["resource_misuse", "tool_misuse", "routing", "safety", "wrong_file_edit", null],
       "description": "Predicted failure category, or null for a clean trace."
     },
     "explanation": { "type": "string" },
