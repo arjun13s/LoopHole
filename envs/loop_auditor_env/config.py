@@ -69,6 +69,22 @@ def _resolve_base_traces_dir() -> Path:
 # Source of known-correct actions for fix_grader.grade_fix (deterministic reward).
 BASE_TRACES_DIR = _resolve_base_traces_dir()
 
+
+def _resolve_rich_taskset_dir() -> Path:
+    """Locate Person 1's rich taskset manifest dir (generated_traces/rich_taskset/
+    {train,heldout}.jsonl): env override, repo-root, then a vendored copy."""
+    override = os.environ.get("LOOP_AUDITOR_RICH_TASKSET_DIR")
+    if override:
+        return Path(override)
+    for candidate in (REPO_ROOT / "generated_traces" / "rich_taskset", PKG_DIR / "rich_taskset"):
+        if (candidate / "heldout.jsonl").exists():
+            return candidate
+    return REPO_ROOT / "generated_traces" / "rich_taskset"
+
+
+# Manifest rows reference case/ground-truth paths relative to the repo root.
+RICH_TASKSET_DIR = _resolve_rich_taskset_dir()
+
 # --- model (single source of truth; chosen at H0) ----------------------------
 # The trainable fork (Qwen3-8B via Tinker), created with `hud models fork`. Used
 # for BOTH the rollout agent and TrainingClient. Override with LOOP_AUDITOR_MODEL
@@ -87,7 +103,9 @@ EXPLANATION_SCORE_THRESHOLD = float(os.environ.get("LOOP_AUDITOR_EXPL_THRESHOLD"
 # --- contract constants ------------------------------------------------------
 NO_FAULT_STEP_ID = None  # verdict.predicted_step_id value for a clean trace
 NO_FAULT_TYPE = None     # verdict.failure_type value for a clean trace
-FAILURE_TYPES = ("resource_misuse", "tool_misuse", "routing", "safety")
+# Additive: wrong_file_edit comes from Person 1's rich taskset; safety is retained
+# for the original taskset. The verdict.json enum mirrors this set.
+FAILURE_TYPES = ("resource_misuse", "tool_misuse", "routing", "safety", "wrong_file_edit")
 
 # --- reward weights (mirror schemas/reward_spec.json §1.4) -------------------
 W_LOCALIZATION = 1.0
