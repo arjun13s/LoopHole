@@ -24,6 +24,13 @@ render_mock() {
   "$DASH_PY" -m dashboard --render --mock
 }
 
+render_tui() {
+  echo ">> [tui] launching interactive dashboard on bundled fixtures"
+  # No --render -> __main__ launches the Textual TUI (needs a real terminal;
+  # falls back to the static render if Textual is absent or stdout isn't a TTY).
+  "$DASH_PY" -m dashboard --mock
+}
+
 render_real() {
   # --- REAL PATH (gated; needs Person 2's HUD eval wired + base/trained slugs) ---
   #
@@ -66,6 +73,7 @@ render_real() {
 
 case "$MODE" in
   --mock|"") render_mock ;;
+  --tui)     render_tui ;;
   --real)    render_real ;;
-  *) echo "usage: $0 [--mock|--real]" >&2; exit 2 ;;
+  *) echo "usage: $0 [--mock|--tui|--real]" >&2; exit 2 ;;
 esac

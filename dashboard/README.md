@@ -19,6 +19,22 @@ dashboard/.venv/bin/python -m dashboard --render --mock   # bundled demo fixture
 ./scripts/run_demo.sh --mock
 ```
 
+### Interactive TUI (demo surface)
+
+Needs a real terminal (not visible inside a CLI agent pane). Install the extra,
+then launch with no `--render` flag:
+
+```bash
+dashboard/.venv/bin/pip install -e '.[interactive]'   # or: pip install 'textual>=0.60'
+dashboard/.venv/bin/python -m dashboard               # opens the TUI on bundled fixtures
+# or:
+./scripts/run_demo.sh --tui
+```
+
+Keys: `↑/↓` (or `j`/`k`) move between Summary and traces · `s` jump to Summary ·
+`enter` scroll the detail pane to top · `q` quit. The TUI reuses the exact same
+Rich panels as the static render, so the two surfaces look identical.
+
 Real data (after Person 2's HUD eval is wired):
 
 ```bash
