@@ -117,11 +117,46 @@ No auto-play / timed advance — the narrator drives the demo.
 - **No verdict sidecar** → `verdict_panel` already returns `None`; show the dim note.
 - **Empty trace set** → Summary-only (list has just the Summary row).
 
-## Styling
+## Styling & visual design
 
-A small inline CSS string (or `.tcss`): left/right pane widths, panel borders, and
-the highlight color for the selected `ListView` row. Kept intentionally minimal —
-the visual weight lives in the reused Rich renderables.
+Design language sourced from the `ui-ux-pro-max` skill in `~/BRAIN/arjunsvault`
+(palette database + UX guidelines), translated to a terminal/Textual context.
+
+**Palette — "Developer Tool / IDE" (#81), a dark slate scheme** chosen because its
+semantics map directly onto the money-shot (green = improvement/correct,
+red = regression/miss):
+
+| Token              | Hex       | Use in TUI                                  |
+|--------------------|-----------|---------------------------------------------|
+| Background         | `#0F172A` | app background                              |
+| Card / panel       | `#1B2336` | panel fills, detail pane                    |
+| Foreground         | `#F8FAFC` | primary text                               |
+| Muted foreground   | `#94A3B8` | secondary/dim text (labels, fixes)          |
+| Border             | `#475569` | panel + pane borders                        |
+| Accent (success)   | `#22C55E` | trained ✓, positive Δ, "trained" column     |
+| Destructive (miss) | `#EF4444` | base ✗, planted-fault marker, negative Δ    |
+| Selection ring     | `#22C55E` | highlighted `ListView` row                  |
+
+These are applied via a small inline Textual CSS string and by aligning
+`render.py`'s existing style constants (`_GOOD`/`_BAD`/`_DIM`) — currently
+`bold green`/`bold red`/`dim` — to the exact palette hexes so the static and TUI
+surfaces look identical. The base/trained column colors in `token_chart` /
+`verdict_panel` (currently `yellow`/`green`) shift to the palette's
+destructive/accent for a consistent base=red, trained=green story.
+
+**UX guidelines applied (from `ux-guidelines.csv`):**
+- *Color contrast (High severity, ≥4.5:1):* the chosen palette is WCAG-annotated;
+  keep text on `#0F172A`/`#1B2336` at full `#F8FAFC`, reserve `#94A3B8` for
+  genuinely secondary text only.
+- *Color carries meaning, consistently:* green only ever means improvement/correct,
+  red only ever means regression/miss — never decorative.
+- *Visual hierarchy / scanning:* the Summary (money-shot) is the default selected
+  view on launch so the strongest result is the first thing on screen.
+- *Realistic sample data:* the bundled fixtures (not lorem) drive the demo.
+
+Styling stays intentionally minimal otherwise — left/right pane widths, borders, and
+the selected-row highlight — because the visual weight lives in the reused Rich
+renderables. Iterate on polish after the first recording.
 
 ## Testing
 
