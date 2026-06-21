@@ -9,7 +9,10 @@ env.py converts the exception into a tool-friendly error message for the agent.
 
 from __future__ import annotations
 
-from .serialize import summarize_trace
+try:  # package (pytest) | flat (hud `env:env`)
+    from .serialize import summarize_trace
+except ImportError:
+    from serialize import summarize_trace
 
 
 def get_trace_summary(trace: dict) -> str:

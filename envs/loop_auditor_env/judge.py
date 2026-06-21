@@ -22,7 +22,10 @@ import json
 import os
 import re
 
-from . import config
+try:  # package (pytest) | flat (hud `env:env`)
+    from . import config
+except ImportError:
+    import config
 
 RUBRIC_DIMENSIONS = ("correctness", "specificity", "causal_soundness")
 

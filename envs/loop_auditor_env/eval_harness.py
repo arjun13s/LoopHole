@@ -19,11 +19,19 @@ import json
 import statistics
 from pathlib import Path
 
-from . import agent as agent_mod
-from . import config, judge
-from . import env as env_mod
-from . import reward as reward_mod
-from . import verdict as verdict_mod
+try:  # package (pytest) | flat (hud `env:env`)
+    from . import agent as agent_mod
+    from . import config, judge
+    from . import env as env_mod
+    from . import reward as reward_mod
+    from . import verdict as verdict_mod
+except ImportError:
+    import agent as agent_mod
+    import config
+    import judge
+    import env as env_mod
+    import reward as reward_mod
+    import verdict as verdict_mod
 
 
 def count_trace_tokens(trace: dict) -> int:

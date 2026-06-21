@@ -17,9 +17,14 @@ from __future__ import annotations
 
 import asyncio
 
-from . import agent as agent_mod
-from . import config
-from . import env as env_mod
+try:  # package (pytest) | flat (hud `env:env`)
+    from . import agent as agent_mod
+    from . import config
+    from . import env as env_mod
+except ImportError:
+    import agent as agent_mod
+    import config
+    import env as env_mod
 
 
 def _reward_of(run) -> float:

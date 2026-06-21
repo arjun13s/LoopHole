@@ -11,7 +11,10 @@ from __future__ import annotations
 
 import os
 
-from . import config
+try:  # package (pytest) | flat (hud `env:env`)
+    from . import config
+except ImportError:
+    import config
 
 
 def build_auditor_agent(model: "str | None" = None):

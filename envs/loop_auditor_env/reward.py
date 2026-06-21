@@ -6,7 +6,10 @@ computed by judge.py (Claude) and INJECTED via ``explanation_score``.
 
 from __future__ import annotations
 
-from . import config
+try:  # package (pytest) | flat (hud `env:env`)
+    from . import config
+except ImportError:
+    import config
 
 
 def compute_reward(

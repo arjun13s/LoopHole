@@ -8,7 +8,10 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from . import config
+try:  # package (pytest) | flat (hud `env:env`)
+    from . import config
+except ImportError:
+    import config
 
 
 _SCHEMA_PATH = config.SCHEMAS_DIR / "verdict.json"
