@@ -24,13 +24,15 @@ from pathlib import Path
 
 try:  # package (pytest) | flat (hud `env:env`)
     from . import agent as agent_mod
-    from . import config, judge
+    from . import citation_gate, config, fix_grader, judge
     from . import env as env_mod
     from . import reward as reward_mod
     from . import verdict as verdict_mod
 except ImportError:
     import agent as agent_mod
+    import citation_gate
     import config
+    import fix_grader
     import judge
     import env as env_mod
     import reward as reward_mod
@@ -84,11 +86,17 @@ def build_eval_record(
             and v["predicted_step_id"] == ground_truth["step_id"]
         )
         failure_type_correct = v["failure_type"] == ground_truth["failure_type"]
-        explanation_score = (
-            judge.score_explanation(trace_view, ground_truth, v.get("explanation", ""))
-            if localization_correct
-            else 0.0
-        )
+        # Deterministic explanation term (same path as env.score_verdict): fix-by-
+        # comparison, zeroed if the verdict cites a fabricated step id. The LLM judge
+        # is NOT in the reward path (eval-time diagnostic only).
+        if localization_correct:
+            explanation_score = fix_grader.grade_fix(
+                v, ground_truth, trace_view, config.BASE_TRACES_DIR
+            )
+            if not citation_gate.check(v, trace_view)["passed"]:
+                explanation_score = 0.0
+        else:
+            explanation_score = 0.0
     rwd = reward_mod.compute_reward(v, ground_truth, explanation_score)
     return {
         "run_id": run_id,

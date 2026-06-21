@@ -30,13 +30,15 @@ from hud import Environment
 from hud.capabilities import Capability
 
 try:  # package mode (pytest)
-    from . import accounting, config, judge, scenarios, serialize
+    from . import accounting, citation_gate, config, fix_grader, judge, scenarios, serialize
     from . import reward as reward_mod
     from . import tools as tools_mod
     from . import verdict as verdict_mod
 except ImportError:  # flat mode (hud `env:env`)
     import accounting
+    import citation_gate
     import config
+    import fix_grader
     import judge
     import scenarios
     import serialize
@@ -110,9 +112,12 @@ def build_prompt(trace_view: dict) -> str:
 def score_verdict(raw_verdict, trace_view: dict, ground_truth) -> float:
     """Parse/validate a verdict and return the §1.4 reward.
 
-    A malformed/empty verdict scores 0.0 (never crashes the rollout). Reuses
-    verdict.py (parse+validate), judge.py (explanation, gated to localization),
-    reward.py (the scalar).
+    A malformed/empty verdict scores 0.0 (never crashes the rollout). The 0.5
+    explanation term is computed DETERMINISTICALLY (no LLM judge in the GRPO hot
+    loop): fix_grader.grade_fix scores the proposed fix against the known correct
+    action, and citation_gate zeroes it if the verdict cites a step_id that isn't
+    in the trace. Reuses verdict.py (parse+validate), reward.py (the scalar). The
+    LLM judge is now an eval-time-only diagnostic, not part of the reward.
     """
     try:
         v = verdict_mod.validate_verdict(verdict_mod.parse_verdict(raw_verdict))
@@ -124,9 +129,9 @@ def score_verdict(raw_verdict, trace_view: dict, ground_truth) -> float:
         and v.get("fault_present") is True
         and v["predicted_step_id"] == ground_truth["step_id"]
     ):
-        explanation_score = judge.score_explanation(
-            trace_view, ground_truth, v.get("explanation", "")
-        )
+        explanation_score = fix_grader.grade_fix(v, ground_truth, trace_view, config.BASE_TRACES_DIR)
+        if not citation_gate.check(v, trace_view)["passed"]:
+            explanation_score = 0.0  # fabricated step reference -> zero the explanation term
     return reward_mod.compute_reward(v, ground_truth, explanation_score)
 
 

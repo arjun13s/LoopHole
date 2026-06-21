@@ -18,11 +18,12 @@ GROUND_TRUTH = {
 }
 
 
-def test_explanation_judge_is_gated_on_localization(monkeypatch):
+def test_grade_fix_not_consulted_when_localization_wrong(monkeypatch):
+    # The explanation term is gated to localization-correct; grade_fix must not run.
     def fail_if_called(*args, **kwargs):
-        raise AssertionError("judge should not run for wrong localization")
+        raise AssertionError("grade_fix should not run for wrong localization")
 
-    monkeypatch.setattr(eval_harness.judge, "score_explanation", fail_if_called)
+    monkeypatch.setattr(eval_harness.fix_grader, "grade_fix", fail_if_called)
     verdict = {
         "fault_present": True,
         "predicted_step_id": "a3",
@@ -43,17 +44,18 @@ def test_explanation_judge_is_gated_on_localization(monkeypatch):
 
     assert record["localization_correct"] is False
     assert record["explanation_score"] == 0.0
-    assert record["reward"] == 0.3
+    assert record["reward"] == 0.3  # failure_type only
 
 
-def test_explanation_judge_runs_when_localization_is_correct(monkeypatch):
-    monkeypatch.setattr(eval_harness.judge, "score_explanation", lambda *args: 0.8)
+def test_explanation_term_from_fix_grader_when_localization_correct(monkeypatch):
+    # Deterministic fix-by-comparison feeds the 0.5 term (no judge in the reward path).
+    monkeypatch.setattr(eval_harness.fix_grader, "grade_fix", lambda *a, **k: 0.8)
     verdict = {
         "fault_present": True,
         "predicted_step_id": "a7",
         "failure_type": "tool_misuse",
-        "explanation": "At a7 the worker submitted after the final test command failed.",
-        "proposed_fix": "Fix the failing case and rerun tests before submitting.",
+        "explanation": "The worker submitted after the focused tests failed.",  # no step-id tokens
+        "proposed_fix": "Do not submit on failing tests; rerun first.",
     }
 
     record = eval_harness.build_eval_record(
@@ -69,6 +71,34 @@ def test_explanation_judge_runs_when_localization_is_correct(monkeypatch):
     assert record["localization_correct"] is True
     assert record["explanation_score"] == 0.8
     assert record["reward"] == pytest.approx(1.7)
+
+
+def test_fabricated_step_ref_zeroes_explanation_keeps_localization(monkeypatch):
+    # A hallucinated step id in the prose zeroes the explanation term but leaves
+    # the deterministically-verified localization + failure_type credit intact.
+    monkeypatch.setattr(eval_harness.fix_grader, "grade_fix", lambda *a, **k: 1.0)
+    verdict = {
+        "fault_present": True,
+        "predicted_step_id": "a7",
+        "failure_type": "tool_misuse",
+        "explanation": "The real bug is actually at step a99.",  # a99 not in the trace
+        "proposed_fix": "fix it",
+    }
+    trace_view = {"run_id": "r1", "iterations": [{"index": 0, "steps": [{"step_id": "a7"}]}]}
+
+    record = eval_harness.build_eval_record(
+        run_id="r1",
+        model_tag="base",
+        raw_verdict=verdict,
+        trace_view=trace_view,
+        ground_truth=GROUND_TRUTH,
+        trace_tokens=10,
+        auditor_tokens=5,
+    )
+
+    assert record["localization_correct"] is True
+    assert record["explanation_score"] == 0.0  # gate zeroed it
+    assert record["reward"] == pytest.approx(1.3)
 
 
 def test_build_eval_record_malformed_is_zero_not_crash():
