@@ -21,6 +21,7 @@ from __future__ import annotations
 import json
 import os
 import re
+from functools import lru_cache
 
 try:  # package (pytest) | flat (hud `env:env`)
     from . import config
@@ -102,6 +103,13 @@ def _use_stub() -> bool:
     return not os.environ.get("ANTHROPIC_API_KEY")
 
 
+def _mock_score() -> "float | None":
+    raw = os.environ.get("LOOP_AUDITOR_MOCK_JUDGE_SCORE")
+    if raw is None:
+        return None
+    return _clamp01(raw)
+
+
 def _stub_dims(trace: dict, ground_truth: dict, explanation: str) -> dict:
     """Deterministic offline heuristic (NOT a real judge). Rewards non-trivial
     explanations that reference the ground-truth fault type / step / keywords."""
@@ -132,6 +140,18 @@ def score_explanation(trace: dict, ground_truth: dict, explanation: str) -> floa
     """Return a 0..1 explanation score. Caller gates this to localization-correct cases."""
     if not explanation or not explanation.strip():
         return 0.0
+    mock_score = _mock_score()
+    if mock_score is not None:
+        return mock_score
+    trace_key = json.dumps(trace, sort_keys=True, separators=(",", ":"))
+    gt_key = json.dumps(ground_truth, sort_keys=True, separators=(",", ":"))
+    return _score_explanation_cached(trace_key, gt_key, explanation)
+
+
+@lru_cache(maxsize=4096)
+def _score_explanation_cached(trace_key: str, gt_key: str, explanation: str) -> float:
+    trace = json.loads(trace_key)
+    ground_truth = json.loads(gt_key)
     if _use_stub():
         return _aggregate(_stub_dims(trace, ground_truth, explanation))
 
@@ -147,3 +167,18 @@ def score_explanation(trace: dict, ground_truth: dict, explanation: str) -> floa
     )
     text = "".join(b.text for b in msg.content if getattr(b, "type", None) == "text")
     return _aggregate(_parse_scores(text))
+
+
+def main() -> None:
+    import argparse
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--mock-judge", type=float, help="Return this fixed 0..1 explanation score.")
+    args = parser.parse_args()
+    if args.mock_judge is not None:
+        os.environ["LOOP_AUDITOR_MOCK_JUDGE_SCORE"] = str(args.mock_judge)
+    print(score_explanation({}, {"step_id": "a0", "failure_type": "routing", "description": "fixture"}, "fixture"))
+
+
+if __name__ == "__main__":
+    main()

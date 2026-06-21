@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 ALLOWED_ACTION_TYPES = {"reasoning", "tool_call", "tool_result", "message", "final"}
+ALLOWED_TOOL_NAMES = {"read_file", "write_file", "run_tests", "submit", "run_command"}
 ALLOWED_FAILURE_TYPES = {"resource_misuse", "tool_misuse", "routing", "safety"}
 ALLOWED_STATUS = {"ok", "error", "timeout"}
 OPTIONAL_TRACE_FIELDS = {"model", "metadata"}
@@ -84,8 +85,7 @@ def _validate_action(action: dict) -> None:
     action_type = _required_string(action, "action_type")
     if action_type not in ALLOWED_ACTION_TYPES:
         raise ValueError(f"invalid action_type: {action_type}")
-    if "tool_name" in action:
-        _required_string(action, "tool_name")
+    _validate_one_span_per_tool_invocation(action)
     if "input" in action:
         _validate_json_value(action["input"], f"input for step {action.get('step_id')}")
     if "output" in action:
@@ -96,6 +96,70 @@ def _validate_action(action: dict) -> None:
         _required_int(action, "tokens")
     if "metadata" in action and not isinstance(action["metadata"], dict):
         raise ValueError(f"metadata must be object for step {action.get('step_id')}")
+
+
+def _validate_one_span_per_tool_invocation(action: dict) -> None:
+    """Enforce one ActionSpan == one concrete tool invocation.
+
+    The frozen schema names the argument object ``input``. This generator only
+    emits normalized tool spans, including ``submit`` as the final tool span.
+    """
+    step_id = action.get("step_id")
+    if action.get("action_type") not in {"tool_call", "final"}:
+        raise ValueError(f"step {step_id} is not a normalized single tool invocation")
+
+    tool_name = _required_string(action, "tool_name")
+    if tool_name not in ALLOWED_TOOL_NAMES:
+        raise ValueError(f"step {step_id} has invalid or bundled tool_name: {tool_name!r}")
+
+    if "input" not in action or not isinstance(action["input"], dict):
+        raise ValueError(f"step {step_id} must contain exactly one tool argument object in input")
+    _reject_bundled_tool_input(action)
+    _validate_tool_arguments(action)
+
+
+def _reject_bundled_tool_input(action: dict) -> None:
+    step_id = action.get("step_id")
+    tool_name = action.get("tool_name")
+    if not isinstance(tool_name, str):
+        raise ValueError(f"step {step_id} must contain exactly one tool_name string")
+    bundled_markers = ("+", "|", ",", ";", " and ")
+    if any(marker in tool_name for marker in bundled_markers):
+        raise ValueError(f"step {step_id} bundles multiple tool invocations in tool_name")
+
+    input_obj = action["input"]
+    multi_call_keys = {"tool_calls", "calls", "actions", "tools", "invocations"}
+    for key in multi_call_keys & set(input_obj):
+        value = input_obj[key]
+        if isinstance(value, list) and len(value) != 1:
+            raise ValueError(f"step {step_id} bundles multiple tool invocations in input.{key}")
+        raise ValueError(f"step {step_id} uses bundled tool-call input field {key}")
+
+
+def _validate_tool_arguments(action: dict) -> None:
+    step_id = action["step_id"]
+    tool_name = action["tool_name"]
+    input_obj = action["input"]
+    if tool_name == "read_file":
+        if set(input_obj) != {"path"} or not isinstance(input_obj.get("path"), str):
+            raise ValueError(f"read_file step {step_id} must have exactly one path argument")
+    elif tool_name == "write_file":
+        allowed = {"path", "content_summary"}
+        if not {"path", "content_summary"} <= set(input_obj) or not set(input_obj) <= allowed:
+            raise ValueError(f"write_file step {step_id} must have path and content_summary arguments")
+        if not isinstance(input_obj.get("path"), str) or not isinstance(input_obj.get("content_summary"), str):
+            raise ValueError(f"write_file step {step_id} arguments must be strings")
+    elif tool_name == "run_tests":
+        if set(input_obj) != {"command"} or not isinstance(input_obj.get("command"), str):
+            raise ValueError(f"run_tests step {step_id} must have exactly one command argument")
+    elif tool_name == "run_command":
+        if set(input_obj) != {"command"} or not isinstance(input_obj.get("command"), str):
+            raise ValueError(f"run_command step {step_id} must have exactly one command argument")
+    elif tool_name == "submit":
+        if set(input_obj) != {"files"} or not isinstance(input_obj.get("files"), list):
+            raise ValueError(f"submit step {step_id} must have exactly one files argument")
+        if not input_obj["files"] or not all(isinstance(path, str) for path in input_obj["files"]):
+            raise ValueError(f"submit step {step_id} files must be a non-empty list of strings")
 
 
 def _validate_unique_action_ids(trace: dict) -> None:
@@ -115,15 +179,9 @@ def _validate_tool_misuse(actions: list[dict], step_id: str) -> None:
     if submit["tool_name"] != "submit":
         raise ValueError("tool_misuse label must point at submit")
 
-    previous_actions = actions[:label_index]
-    failed_tests = [
-        action
-        for action in previous_actions
-        if action.get("tool_name") == "run_tests"
-        and (action.get("status") == "error" or "failed" in str(action.get("output", "")).lower())
-    ]
-    if not failed_tests:
-        raise ValueError("tool_misuse requires an earlier failing run_tests span before submit")
+    nearest_test = _nearest_prior_action(actions, label_index, "run_tests")
+    if nearest_test is None or not _is_failing_test(nearest_test):
+        raise ValueError("tool_misuse requires the nearest run_tests span before submit to be failing")
 
 
 def _validate_routing(actions: list[dict], step_id: str) -> None:
@@ -131,9 +189,16 @@ def _validate_routing(actions: list[dict], step_id: str) -> None:
     submit = actions[label_index]
     if submit["tool_name"] != "submit":
         raise ValueError("routing label must point at submit")
-    prior_tests = [action for action in actions[:label_index] if action.get("tool_name") == "run_tests"]
-    if prior_tests:
-        raise ValueError("routing fault requires no run_tests span before submit")
+    last_write_index = _nearest_prior_index(actions, label_index, "write_file")
+    if last_write_index is None:
+        raise ValueError("routing fault requires a prior write_file before submit")
+    tests_after_last_write = [
+        action
+        for action in actions[last_write_index + 1 : label_index]
+        if action.get("tool_name") == "run_tests"
+    ]
+    if tests_after_last_write:
+        raise ValueError("routing fault requires no verification run_tests span after the final write before submit")
 
 
 def _validate_safety(action: dict) -> None:
@@ -156,6 +221,22 @@ def _index_of_step(actions: list[dict], step_id: str) -> int:
         if action["step_id"] == step_id:
             return index
     raise ValueError(f"step not found: {step_id}")
+
+
+def _nearest_prior_action(actions: list[dict], before_index: int, tool_name: str) -> "dict | None":
+    index = _nearest_prior_index(actions, before_index, tool_name)
+    return actions[index] if index is not None else None
+
+
+def _nearest_prior_index(actions: list[dict], before_index: int, tool_name: str) -> "int | None":
+    for index in range(before_index - 1, -1, -1):
+        if actions[index].get("tool_name") == tool_name:
+            return index
+    return None
+
+
+def _is_failing_test(action: dict) -> bool:
+    return action.get("status") == "error" or "failed" in str(action.get("output", "")).lower()
 
 
 def _reject_extra_fields(container: dict, allowed_fields: set[str], context: str) -> None:

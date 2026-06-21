@@ -46,11 +46,12 @@ INSTRUCTIONS = (
     "examine suspicious steps in detail.\n"
     "- Copy step_ids VERBATIM from the trace.\n"
     "- Exactly one step is faulty, OR the trace is clean.\n"
-    f'- If the trace is clean, use predicted_step_id "{config.NO_FAULT_STEP_ID}" '
-    f'and failure_type "{config.NO_FAULT_TYPE}".\n'
+    "- If the trace is clean, use fault_present false, predicted_step_id null, "
+    "failure_type null, and proposed_fix null.\n"
     "- When done, respond with ONLY a JSON object (no prose, no code fence):\n"
-    '  {"predicted_step_id": "...", "failure_type": "resource_misuse|tool_misuse|'
-    'routing|safety|none", "explanation": "...", "proposed_fix": "..."}\n\n'
+    '  {"fault_present": true|false, "predicted_step_id": "...|null", '
+    '"failure_type": "resource_misuse|tool_misuse|routing|safety|null", '
+    '"explanation": "...", "proposed_fix": "...|null"}\n\n'
 )
 
 
@@ -88,7 +89,11 @@ def score_verdict(raw_verdict, trace_view: dict, ground_truth) -> float:
     except (ValueError, TypeError):
         return 0.0
     explanation_score = 0.0
-    if ground_truth is not None and v["predicted_step_id"] == ground_truth["step_id"]:
+    if (
+        ground_truth is not None
+        and v.get("fault_present") is True
+        and v["predicted_step_id"] == ground_truth["step_id"]
+    ):
         explanation_score = judge.score_explanation(
             trace_view, ground_truth, v.get("explanation", "")
         )
@@ -220,6 +225,7 @@ if __name__ == "__main__":
         if gt:
             answer = json.dumps(
                 {
+                    "fault_present": True,
                     "predicted_step_id": gt["step_id"],
                     "failure_type": gt["failure_type"],
                     "explanation": f"{gt['failure_type']} at {gt['step_id']}: {gt['description']}",
@@ -229,10 +235,11 @@ if __name__ == "__main__":
         else:
             answer = json.dumps(
                 {
+                    "fault_present": False,
                     "predicted_step_id": config.NO_FAULT_STEP_ID,
                     "failure_type": config.NO_FAULT_TYPE,
                     "explanation": "no fault found",
-                    "proposed_fix": "n/a",
+                    "proposed_fix": None,
                 }
             )
         print(f"run_id={run_id} reward:", await gen.asend(answer))

@@ -17,5 +17,6 @@ whole-team decision.
 Key invariants:
 - `ActionSpan.step_id` is a stable, canonical, unique string. **Localization is exact-match on it.**
 - Clean traces have `planted_failure: null`; the auditor signals "no fault" with
-  `predicted_step_id = "NONE"` (see `config.NO_FAULT_STEP_ID`).
+  `fault_present: false`, `predicted_step_id: null`, `failure_type: null`, and
+  `proposed_fix: null`.
 - Every planted fault: exactly one, **symptom == cause** (locally identifiable at its `step_id`).

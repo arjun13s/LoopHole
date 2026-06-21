@@ -26,8 +26,7 @@
   "formula": "reward = 1.0*localization_correct + 0.3*failure_type_correct + (0.5*explanation_score if localization_correct else 0.0)",
   "clean_trace": {
     "condition": "planted_failure == null",
-    "no_fault_sentinel": "NONE",
-    "rule": "reward = 1.0 if verdict.predicted_step_id == 'NONE' else 0.0"
+    "rule": "reward = 1.0 if verdict.fault_present == false else 0.0"
   },
   "explanation_rubric": {
     "judge": "separate strong model (Anthropic/Claude); NEVER the trained eval agent (avoids circularity)",

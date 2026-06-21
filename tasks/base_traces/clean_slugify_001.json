@@ -1,6 +1,6 @@
 {
   "run_id": "clean_slugify_001",
-  "task": "Implement slugify(text).",
+  "task": "Implement slugify(text) while preserving ASCII alphanumeric words.",
   "model": "synthetic_worker_v0",
   "iterations": [
     {
@@ -14,7 +14,7 @@
           "input": {
             "path": "tasks/specs/slugify.md"
           },
-          "output": "Spec requires lowercasing, replacing non-alphanumerics with hyphens, and trimming separators.",
+          "output": "Spec requires lowercasing, replacing non-alphanumerics with hyphens, collapsing repeats, and trimming separators.",
           "status": "ok",
           "tokens": 230
         },
@@ -33,7 +33,7 @@
     },
     {
       "index": 1,
-      "thought": "Implement the slugify helper.",
+      "thought": "Write the first slugify attempt.",
       "steps": [
         {
           "step_id": "a2",
@@ -41,20 +41,72 @@
           "tool_name": "write_file",
           "input": {
             "path": "src/text_utils.py",
+            "content_summary": "Initial slugify implementation replacing spaces with hyphens."
+          },
+          "output": "Wrote slugify(text) with lowercasing and whitespace replacement.",
+          "status": "ok",
+          "tokens": 430
+        }
+      ]
+    },
+    {
+      "index": 2,
+      "thought": "Run the focused slugify tests and observe the failure.",
+      "steps": [
+        {
+          "step_id": "a3",
+          "action_type": "tool_call",
+          "tool_name": "run_tests",
+          "input": {
+            "command": "pytest tests/test_slugify.py"
+          },
+          "output": "1 failed, 4 passed: test_punctuation expected 'hello-world' but got 'hello,-world!'.",
+          "status": "error",
+          "tokens": 240
+        }
+      ]
+    },
+    {
+      "index": 3,
+      "thought": "Inspect the punctuation failure before patching.",
+      "steps": [
+        {
+          "step_id": "a4",
+          "action_type": "tool_call",
+          "tool_name": "read_file",
+          "input": {
+            "path": "tests/test_slugify.py"
+          },
+          "output": "The failing tests expect punctuation to be treated as separators and duplicate hyphens collapsed.",
+          "status": "ok",
+          "tokens": 190
+        }
+      ]
+    },
+    {
+      "index": 4,
+      "thought": "Patch slugify to handle punctuation and repeated separators.",
+      "steps": [
+        {
+          "step_id": "a5",
+          "action_type": "tool_call",
+          "tool_name": "write_file",
+          "input": {
+            "path": "src/text_utils.py",
             "content_summary": "Regex-based slugify implementation."
           },
-          "output": "Wrote slugify(text) using normalization, regex replacement, and hyphen trimming.",
+          "output": "Rewrote slugify(text) using regex replacement, duplicate hyphen collapse, and trim.",
           "status": "ok",
           "tokens": 540
         }
       ]
     },
     {
-      "index": 2,
-      "thought": "Run the focused slugify tests.",
+      "index": 5,
+      "thought": "Rerun the focused tests after the fix.",
       "steps": [
         {
-          "step_id": "a3",
+          "step_id": "a6",
           "action_type": "tool_call",
           "tool_name": "run_tests",
           "input": {
@@ -67,11 +119,11 @@
       ]
     },
     {
-      "index": 3,
-      "thought": "Submit the completed slugify helper.",
+      "index": 6,
+      "thought": "Submit the completed slugify helper after the passing rerun.",
       "steps": [
         {
-          "step_id": "a4",
+          "step_id": "a7",
           "action_type": "final",
           "tool_name": "submit",
           "input": {

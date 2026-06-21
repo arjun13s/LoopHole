@@ -55,8 +55,8 @@ def parse_verdict(raw: "str | dict") -> dict:
 def validate_verdict(obj: dict) -> dict:
     """Validate ``obj`` against schemas/verdict.json and normalize.
 
-    Requires keys predicted_step_id, failure_type, explanation, proposed_fix and
-    enum membership for failure_type (incl. 'none'). Returns the normalized
+    Requires keys fault_present, predicted_step_id, failure_type, explanation,
+    proposed_fix and enum membership for failure_type. Returns the normalized
     verdict. Raise ValueError (including the schema errors) on invalid input.
     Load schemas/verdict.json from config.SCHEMAS_DIR; keep validation dependency-free.
     """
@@ -85,12 +85,39 @@ def validate_verdict(obj: dict) -> dict:
         if key not in normalized:
             continue
         value = normalized[key]
-        if rules.get("type") == "string" and not isinstance(value, str):
-            errors.append(f"{key}: {value!r} is not of type 'string'")
+        rule_type = rules.get("type")
+        allowed_types = rule_type if isinstance(rule_type, list) else [rule_type]
+        if rule_type is not None and not _matches_type(value, allowed_types):
+            errors.append(f"{key}: {value!r} is not of type {allowed_types!r}")
             continue
         if "enum" in rules and value not in rules["enum"]:
             errors.append(f"{key}: {value!r} is not one of {rules['enum']!r}")
+    if normalized.get("fault_present") is False:
+        if normalized.get("predicted_step_id") is not None:
+            errors.append("predicted_step_id: clean verdict must use null")
+        if normalized.get("failure_type") is not None:
+            errors.append("failure_type: clean verdict must use null")
+        if normalized.get("proposed_fix") is not None:
+            errors.append("proposed_fix: clean verdict must use null")
+    elif normalized.get("fault_present") is True:
+        if normalized.get("predicted_step_id") is None:
+            errors.append("predicted_step_id: fault verdict must name a step")
+        if normalized.get("failure_type") is None:
+            errors.append("failure_type: fault verdict must name a failure type")
+        if normalized.get("proposed_fix") is None:
+            errors.append("proposed_fix: fault verdict must include a fix")
 
     if errors:
         raise ValueError("invalid verdict: " + "; ".join(errors))
     return normalized
+
+
+def _matches_type(value, allowed_types: list) -> bool:
+    for type_name in allowed_types:
+        if type_name == "boolean" and isinstance(value, bool):
+            return True
+        if type_name == "string" and isinstance(value, str):
+            return True
+        if type_name == "null" and value is None:
+            return True
+    return False

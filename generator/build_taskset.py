@@ -15,6 +15,7 @@ from validate import validate_trace
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 BASE_TRACES_DIR = REPO_ROOT / "tasks" / "base_traces"
+CLEAN_RATIO = 0.36
 
 
 def main() -> None:
@@ -74,7 +75,7 @@ def _load_base_traces() -> list[dict]:
 
 def _make_split(count: int, bases: list[dict], split_name: str) -> list[dict]:
     traces = []
-    category_counts = _balanced_counts(count, FAULT_TYPES)
+    category_counts = _target_counts(count)
     serial = 0
     for category in FAULT_TYPES:
         for variant in range(category_counts[category]):
@@ -97,12 +98,14 @@ def _clone_clean(base: dict, split_name: str, variant: int) -> dict:
     return trace
 
 
-def _balanced_counts(count: int, categories: tuple[str, ...]) -> dict[str, int]:
-    base_count, remainder = divmod(count, len(categories))
-    return {
-        category: base_count + (1 if index < remainder else 0)
-        for index, category in enumerate(categories)
-    }
+def _target_counts(count: int) -> dict[str, int]:
+    clean_count = round(count * CLEAN_RATIO)
+    fault_categories = tuple(category for category in FAULT_TYPES if category != "clean")
+    fault_count, remainder = divmod(count - clean_count, len(fault_categories))
+    counts = {"clean": clean_count}
+    for index, category in enumerate(fault_categories):
+        counts[category] = fault_count + (1 if index < remainder else 0)
+    return counts
 
 
 def _write_jsonl(path: Path, traces: list[dict]) -> None:

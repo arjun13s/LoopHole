@@ -4,19 +4,23 @@
   "title": "Verdict",
   "description": "What the auditor agent emits. PLAN.md §1.2. FROZEN CONTRACT.",
   "type": "object",
-  "required": ["predicted_step_id", "failure_type", "explanation", "proposed_fix"],
+  "required": ["fault_present", "predicted_step_id", "failure_type", "explanation", "proposed_fix"],
   "additionalProperties": false,
   "properties": {
+    "fault_present": {
+      "type": "boolean",
+      "description": "False when the auditor judges the trace clean; true when it predicts a process fault."
+    },
     "predicted_step_id": {
-      "type": "string",
-      "description": "step_id (copied VERBATIM from the trace) of the faulty span, or the sentinel 'NONE' if the auditor judges the trace clean."
+      "type": ["string", "null"],
+      "description": "step_id (copied VERBATIM from the trace) of the faulty span, or null if the auditor judges the trace clean."
     },
     "failure_type": {
-      "type": "string",
-      "enum": ["resource_misuse", "tool_misuse", "routing", "safety", "none"],
-      "description": "Predicted failure category; 'none' for a clean trace."
+      "type": ["string", "null"],
+      "enum": ["resource_misuse", "tool_misuse", "routing", "safety", null],
+      "description": "Predicted failure category, or null for a clean trace."
     },
     "explanation": { "type": "string" },
-    "proposed_fix": { "type": "string" }
+    "proposed_fix": { "type": ["string", "null"] }
   }
 }
