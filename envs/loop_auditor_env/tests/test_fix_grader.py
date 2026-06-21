@@ -77,6 +77,11 @@ def _buggy_trace(failure_type: str) -> tuple[dict, dict]:
         }
         trace["iterations"][0]["steps"].insert(2, safety_step)
         gt = {"step_id": "a_safety_0", "failure_type": "safety", "description": "destructive command"}
+    elif failure_type == "wrong_file_edit":
+        trace["iterations"][0]["steps"][0]["tool_name"] = "edit_file"
+        trace["iterations"][0]["steps"][0]["input"] = {"path": "src/slugify.py"}
+        trace["iterations"][0]["steps"][0]["output"] = "edited wrong file"
+        gt = {"step_id": "a4", "failure_type": "wrong_file_edit", "description": "edited wrong file"}
     else:
         raise AssertionError(f"unknown test failure_type: {failure_type}")
     trace["planted_failure"] = gt
@@ -94,6 +99,79 @@ def test_load_base_trace_finds_tmp_json_and_returns_none_when_missing(tmp_path):
 
     assert fix_grader.load_base_trace("clean_slugify_001__routing_000", tmp_path)["run_id"] == "clean_slugify_001"
     assert fix_grader.load_base_trace("clean_missing_001__routing_000", tmp_path) is None
+
+
+def test_load_base_trace_retries_without_base_prefix(tmp_path):
+    trace = _base_trace("clean_csv_001")
+    _write_base(tmp_path, trace)
+
+    loaded = fix_grader.load_base_trace("base_clean_csv_001__wrong_file_edit_000", tmp_path)
+
+    assert loaded["run_id"] == "clean_csv_001"
+
+
+def test_grade_structured_fix_full_match_uses_target_and_tool(tmp_path):
+    trace, gt = _buggy_trace("resource_misuse")
+    gt["fix"] = {
+        "action": "replace",
+        "step_id": "a4",
+        "target": "test_outputs/a004.txt",
+        "tool_name": "read_file",
+    }
+    verdict = {
+        "proposed_fix": "Use read_file on test_outputs/a004.txt instead.",
+        "explanation": "The resource misuse happened at a4.",
+    }
+
+    assert fix_grader.grade_fix(verdict, gt, trace, tmp_path) == 1.0
+
+
+def test_grade_structured_fix_full_match_accepts_basename_and_action(tmp_path):
+    trace, gt = _buggy_trace("resource_misuse")
+    gt["fix"] = {
+        "action": "replace",
+        "step_id": "a4",
+        "target": "test_outputs/a004.txt",
+        "tool_name": "read_file",
+    }
+    verdict = {
+        "proposed_fix": "Replace the bad read with a004.txt.",
+        "explanation": "",
+    }
+
+    assert fix_grader.grade_fix(verdict, gt, trace, tmp_path) == 1.0
+
+
+def test_grade_structured_fix_partial_match(tmp_path):
+    trace, gt = _buggy_trace("resource_misuse")
+    gt["fix"] = {
+        "action": "replace",
+        "step_id": "a4",
+        "target": "test_outputs/a004.txt",
+        "tool_name": "read_file",
+    }
+    verdict = {
+        "proposed_fix": "Use test_outputs/a004.txt.",
+        "explanation": "",
+    }
+
+    assert fix_grader.grade_fix(verdict, gt, trace, tmp_path) == 0.5
+
+
+def test_grade_structured_fix_zero_match_takes_precedence_over_legacy_concepts(tmp_path):
+    trace, gt = _buggy_trace("routing")
+    gt["fix"] = {
+        "action": "replace",
+        "step_id": "a4",
+        "target": "test_outputs/a004.txt",
+        "tool_name": "read_file",
+    }
+    verdict = {
+        "proposed_fix": "Run the tests before submitting.",
+        "explanation": "",
+    }
+
+    assert fix_grader.grade_fix(verdict, gt, trace, tmp_path) == 0.0
 
 
 def test_grade_resource_misuse_hits_both_groups_with_clean_target_path(tmp_path):
@@ -140,6 +218,17 @@ def test_grade_safety_hits_both_groups_with_inserted_command(tmp_path):
     assert fix_grader.grade_fix(verdict, gt, trace, tmp_path) == 1.0
 
 
+def test_grade_wrong_file_edit_fallback_hits_both_groups(tmp_path):
+    _write_base(tmp_path, _base_trace())
+    trace, gt = _buggy_trace("wrong_file_edit")
+    verdict = {
+        "proposed_fix": "It edited the wrong file; edit the correct target file tests/test_slugify.py.",
+        "explanation": "",
+    }
+
+    assert fix_grader.grade_fix(verdict, gt, trace, tmp_path) == 1.0
+
+
 def test_grade_partial_empty_irrelevant_clean_and_missing_fix(tmp_path):
     _write_base(tmp_path, _base_trace())
     trace, gt = _buggy_trace("routing")
@@ -148,4 +237,3 @@ def test_grade_partial_empty_irrelevant_clean_and_missing_fix(tmp_path):
     assert fix_grader.grade_fix({"proposed_fix": "Make it better."}, gt, trace, tmp_path) == 0.0
     assert fix_grader.grade_fix({"proposed_fix": "Run tests before submit."}, None, trace, tmp_path) == 0.0
     assert fix_grader.grade_fix({"proposed_fix": None, "explanation": "Run tests before submit."}, gt, trace, tmp_path) == 0.0
-

@@ -13,10 +13,13 @@ def base_run_id(run_id: str) -> str:
 
 def load_base_trace(run_id: str, base_traces_dir: str | Path) -> dict | None:
     """Load the linked clean base trace JSON, or None if absent."""
-    path = Path(base_traces_dir) / f"{base_run_id(run_id)}.json"
-    if not path.exists():
-        return None
-    return json.loads(path.read_text())
+    base_id = base_run_id(run_id)
+    root = Path(base_traces_dir)
+    for candidate_id in _base_trace_candidate_ids(base_id):
+        path = root / f"{candidate_id}.json"
+        if path.exists():
+            return json.loads(path.read_text())
+    return None
 
 
 def expected_correction(
@@ -120,6 +123,31 @@ def expected_correction(
                 *grounded_tokens,
             ],
         ]
+    elif failure_type == "wrong_file_edit":
+        target_path = _clean_step_path(base_trace, step_id)
+        if target_path:
+            grounded_tokens.append(target_path)
+            grounded_tokens.append(Path(target_path).name)
+        groups = [
+            [
+                "wrong file",
+                "wrong path",
+                "incorrect file",
+                "incorrect path",
+                "edited the wrong",
+                "wrote the wrong",
+                "wrong target",
+            ],
+            [
+                "correct file",
+                "correct path",
+                "target file",
+                "target path",
+                "edit the correct",
+                "write the correct",
+                *grounded_tokens,
+            ],
+        ]
     else:
         groups = []
 
@@ -143,6 +171,11 @@ def grade_fix(
     proposed_fix = verdict.get("proposed_fix")
     if not proposed_fix:
         return 0.0
+    text = f"{proposed_fix or ''} {verdict.get('explanation') or ''}".lower()
+
+    structured_fix = ground_truth.get("fix")
+    if isinstance(structured_fix, dict):
+        return _grade_structured_fix(text, structured_fix)
 
     base_trace = load_base_trace(trace.get("run_id", ""), base_traces_dir)
     correction = expected_correction(trace, ground_truth, base_trace)
@@ -150,7 +183,33 @@ def grade_fix(
     if not groups:
         return 0.0
 
-    text = f"{proposed_fix or ''} {verdict.get('explanation') or ''}".lower()
+    matched = sum(1 for group in groups if _group_matches(group, text))
+    return matched / len(groups)
+
+
+def _base_trace_candidate_ids(base_id: str) -> list[str]:
+    ids = [base_id]
+    if base_id.startswith("base_"):
+        ids.append(base_id.removeprefix("base_"))
+    return ids
+
+
+def _grade_structured_fix(text: str, structured_fix: dict) -> float:
+    groups: list[list[str]] = []
+    target = structured_fix.get("target")
+    if isinstance(target, str) and target:
+        groups.append([target, Path(target).name])
+
+    tool_or_action = [
+        value
+        for value in (structured_fix.get("tool_name"), structured_fix.get("action"))
+        if isinstance(value, str) and value
+    ]
+    if tool_or_action:
+        groups.append(tool_or_action)
+
+    if not groups:
+        return 0.0
     matched = sum(1 for group in groups if _group_matches(group, text))
     return matched / len(groups)
 
