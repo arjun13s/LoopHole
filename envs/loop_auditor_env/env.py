@@ -100,14 +100,23 @@ def select_traces() -> "list[dict]":
             config.TASKSET_DIR / "heldout.jsonl"
         )
     if ds in ("rich_train", "rich_heldout"):
-        split = ds.split("_", 1)[1]
-        return rich_loader.load_rich_taskset(config.RICH_TASKSET_DIR / f"{split}.jsonl", config.REPO_ROOT)
+        return _load_rich(ds.split("_", 1)[1])
     if ds == "rich_all":
-        return rich_loader.load_rich_taskset(
-            config.RICH_TASKSET_DIR / "train.jsonl", config.REPO_ROOT
-        ) + rich_loader.load_rich_taskset(config.RICH_TASKSET_DIR / "heldout.jsonl", config.REPO_ROOT)
+        return _load_rich("train") + _load_rich("heldout")
     p = Path(ds)
     return load_fixture_traces(p) if p.is_dir() else load_jsonl_traces(p)
+
+
+def _load_rich(split: str) -> "list[dict]":
+    """Rich traces for ``split``: the vendored, self-contained normalized JSONL
+    (PKG_DIR/rich/<split>.jsonl, baked into the deploy image) when present, else
+    normalize Person 1's manifest on the fly (local dev). Regenerate the vendored
+    copy with scripts/vendor_rich.py after Person 1 updates the rich taskset.
+    """
+    vendored = config.PKG_DIR / "rich" / f"{split}.jsonl"
+    if vendored.exists():
+        return load_jsonl_traces(vendored)
+    return rich_loader.load_rich_taskset(config.RICH_TASKSET_DIR / f"{split}.jsonl", config.REPO_ROOT)
 
 
 def strip_ground_truth(trace: dict) -> "tuple[dict, dict | None]":

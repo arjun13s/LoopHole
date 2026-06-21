@@ -15,6 +15,10 @@ RUN uv sync --frozen --no-dev || uv sync --no-dev
 COPY *.py ./
 COPY fixtures ./fixtures
 COPY schemas ./schemas
+# Vendored, self-contained normalized rich taskset (scripts/vendor_rich.py).
+# env._load_rich reads these directly so the container needs neither the repo-root
+# manifest nor the 812-file case tree. LOOP_AUDITOR_DATASET=rich_heldout serves it.
+COPY rich ./rich
 
 # Serve the v6 control channel; @env.initialize brings up the in-process tools MCP capability.
 EXPOSE 8765

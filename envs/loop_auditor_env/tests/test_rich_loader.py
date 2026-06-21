@@ -1,5 +1,7 @@
 """rich_loader normalizes Person 1's rich taskset into the env trace schema."""
 
+import json
+
 from loop_auditor_env import config, rich_loader
 from loop_auditor_env import verdict as V
 
@@ -39,3 +41,13 @@ def test_wrong_file_edit_is_valid_failure_type():
         "failure_type": "wrong_file_edit", "explanation": "x", "proposed_fix": "y",
     }
     assert V.validate_verdict(v)["failure_type"] == "wrong_file_edit"
+
+
+def test_vendored_rich_present_and_normalized():
+    # Guard: the deploy image ships these; regenerate with scripts/vendor_rich.py.
+    for split, n in (("train", 40), ("heldout", 10)):
+        path = config.PKG_DIR / "rich" / f"{split}.jsonl"
+        assert path.exists(), "run scripts/vendor_rich.py and commit envs/loop_auditor_env/rich/"
+        traces = [json.loads(line) for line in path.read_text().splitlines() if line.strip()]
+        assert len(traces) == n
+        assert all({"run_id", "iterations", "planted_failure"} <= set(t) for t in traces)
