@@ -1,0 +1,4 @@
+diff --git a/src/csv_utils.py b/src/csv_utils.py
+@@
+-    # initial implementation
++    # corrected implementation: symbols become single underscores and edges are trimmed

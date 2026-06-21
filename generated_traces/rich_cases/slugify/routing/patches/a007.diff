@@ -1,0 +1,4 @@
+diff --git a/src/string_utils.py b/src/string_utils.py
+@@
+-    # initial implementation
++    # corrected implementation: punctuation becomes collapsed hyphen separators

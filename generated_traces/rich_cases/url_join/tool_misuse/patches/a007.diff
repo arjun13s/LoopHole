@@ -1,0 +1,4 @@
+diff --git a/src/url_utils.py b/src/url_utils.py
+@@
+-    # initial implementation
++    # corrected implementation: exactly one slash joins each fragment

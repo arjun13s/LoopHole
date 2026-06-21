@@ -1,0 +1,4 @@
+FAILED tests/test_url_utils.py::test_duplicate_slashes
+E       AssertionError: duplicate slashes are preserved
+E       Expected: exactly one slash joins each fragment
+1 failed, 5 passed in 0.06s

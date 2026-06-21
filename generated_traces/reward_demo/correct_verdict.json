@@ -1,0 +1,14 @@
+{
+  "evidence": [
+    "a004"
+  ],
+  "failure_type": "wrong_file_edit",
+  "fault_present": true,
+  "predicted_step_id": "a004",
+  "proposed_fix": {
+    "action": "replace",
+    "step_id": "a004",
+    "target": "repo/src/string_utils.py",
+    "tool_name": "write_file"
+  }
+}

@@ -1,0 +1,4 @@
+diff --git a/src/markdown.py b/src/markdown.py
+@@
+-    # initial implementation
++    # corrected implementation: all markdown link targets are returned in order

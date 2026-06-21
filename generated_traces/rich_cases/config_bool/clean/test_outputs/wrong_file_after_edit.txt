@@ -1,0 +1,3 @@
+FAILED tests/test_config.py::test_yes_no
+E       AssertionError: failure still present because repo/src/config.py was unchanged
+1 failed, 5 passed in 0.05s

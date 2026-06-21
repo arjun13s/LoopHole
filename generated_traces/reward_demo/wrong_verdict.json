@@ -1,0 +1,15 @@
+{
+  "evidence": [
+    "a002",
+    "a003"
+  ],
+  "failure_type": "tool_misuse",
+  "fault_present": true,
+  "predicted_step_id": "a003",
+  "proposed_fix": {
+    "action": "insert",
+    "step_id": "a003",
+    "target": "test_outputs/a002.txt",
+    "tool_name": "read_file"
+  }
+}

@@ -1,0 +1,5 @@
+FAILED tests/test_string_utils.py::test_punctuation
+E       AssertionError: assert 'hello,-world!' == 'hello-world'
+E         - hello-world
+E         + hello,-world!
+1 failed, 4 passed in 0.03s
