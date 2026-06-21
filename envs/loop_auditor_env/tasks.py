@@ -12,6 +12,6 @@ from env import audit_trace, env, load_fixture_traces  # noqa: F401
 
 tasks = []
 for _trace in load_fixture_traces():
-    _task = audit_trace(run_id=_trace["run_id"])
+    _task = audit_trace(scenario_id=f"audit__{_trace['run_id']}")
     _task.slug = _trace["run_id"]
     tasks.append(_task)

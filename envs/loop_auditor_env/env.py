@@ -27,13 +27,15 @@ from hud import Environment
 from hud.capabilities import Capability
 
 try:  # package mode (pytest)
-    from . import config, judge, serialize
+    from . import accounting, config, judge, scenarios, serialize
     from . import reward as reward_mod
     from . import tools as tools_mod
     from . import verdict as verdict_mod
 except ImportError:  # flat mode (hud `env:env`)
+    import accounting
     import config
     import judge
+    import scenarios
     import serialize
     import reward as reward_mod
     import tools as tools_mod
@@ -98,35 +100,134 @@ def score_verdict(raw_verdict, trace_view: dict, ground_truth) -> float:
 # --- the environment ---------------------------------------------------------
 env = Environment(name="loop-auditor")
 
-# Full fixture traces (incl. planted_failure), keyed by run_id.
+# Full traces keyed by run_id (incl. planted_failure).
 _TRACES = {t["run_id"]: t for t in load_fixture_traces()}
+_SCENARIOS = {s.id: s for s in scenarios.enumerate_scenarios(list(_TRACES.values()))}
 
-# The trace the agent is currently auditing. HUD runs one container per
-# evaluation (no in-process parallelism), so a module global is safe — the
-# in-process MCP tools read it.
-_current = {"trace_view": None}
+# Per-run state (one container per eval -> module global is safe).
+_run: dict = {"scenario": None, "trace_view": None, "ground_truth": None,
+              "meter": accounting.TokenMeter(), "cursor": 0, "decisions": [],
+              "fault_iteration": None}
+
+
+def _begin_run(scenario) -> None:
+    trace = _TRACES[scenario.trace_id]
+    view, gt = strip_ground_truth(trace)
+    _run.update(scenario=scenario, trace_view=view, ground_truth=gt,
+                meter=accounting.TokenMeter(budget=scenario.token_budget),
+                cursor=0, decisions=[], fault_iteration=scenarios.fault_iteration(trace))
+
+
+def _enabled(name: str) -> bool:
+    sc = _run["scenario"]
+    return sc is None or name in sc.enabled_tools
+
+
+def _charge_output(category: str, value) -> None:
+    _run["meter"].charge(accounting.estimate_tokens(value), category)
 
 
 # --- agent-facing inspection tools (served via the MCP capability) -----------
 async def get_trace_summary() -> str:
-    """Compact summary of the whole trace under audit."""
-    return tools_mod.get_trace_summary(_current["trace_view"])
+    if not _enabled("get_trace_summary"):
+        return "tool disabled for this scenario"
+    out = tools_mod.get_trace_summary(_run["trace_view"])
+    _charge_output("tool", out)
+    return out
 
 
 async def get_iteration(index: int) -> str:
-    """Full detail of loop iteration ``index`` (JSON)."""
+    if not _enabled("get_iteration"):
+        return "tool disabled for this scenario"
     try:
-        return json.dumps(tools_mod.get_iteration(_current["trace_view"], index))
+        out = json.dumps(tools_mod.get_iteration(_run["trace_view"], index))
     except (IndexError, TypeError) as exc:
         return f"error: {exc}"
+    _charge_output("tool", out)
+    return out
 
 
 async def get_step(step_id: str) -> str:
-    """Full detail of the step with ``step_id`` (JSON)."""
+    if not _enabled("get_step"):
+        return "tool disabled for this scenario"
     try:
-        return json.dumps(tools_mod.get_step(_current["trace_view"], step_id))
+        out = json.dumps(tools_mod.get_step(_run["trace_view"], step_id))
     except (KeyError, TypeError) as exc:
         return f"error: {exc}"
+    _charge_output("tool", out)
+    return out
+
+
+async def search_steps(query: str) -> str:
+    if not _enabled("search_steps"):
+        return "tool disabled for this scenario"
+    out = json.dumps(tools_mod.search_steps(_run["trace_view"], query))
+    _charge_output("tool", out)
+    return out
+
+
+async def get_errors() -> str:
+    if not _enabled("get_errors"):
+        return "tool disabled for this scenario"
+    out = json.dumps(tools_mod.get_errors(_run["trace_view"]))
+    _charge_output("tool", out)
+    return out
+
+
+async def get_step_io(step_id: str) -> str:
+    if not _enabled("get_step_io"):
+        return "tool disabled for this scenario"
+    try:
+        out = json.dumps(tools_mod.get_step_io(_run["trace_view"], step_id))
+    except (KeyError, TypeError) as exc:
+        return f"error: {exc}"
+    _charge_output("tool", out)
+    return out
+
+
+async def get_budget() -> dict:
+    m = _run["meter"]
+    return {"spent": m.spent, "remaining": m.remaining, "breakdown": dict(m.breakdown),
+            "lambda": _run["scenario"].lambda_tokens if _run["scenario"] else 0.0}
+
+
+async def get_solution() -> str:
+    if not _enabled("get_solution"):
+        return "tool disabled for this scenario"
+    _run["meter"].charge(config.SOLUTION_COST, "solution")  # expensive on purpose
+    ref = tools_mod.get_reference_solution(_run["trace_view"])
+    return ref if ref else "reference unavailable"
+
+
+async def observe_next() -> str:
+    """Reveal the next iteration in the gate replay stream; charges its tokens."""
+    if not _enabled("observe_next"):
+        return "tool disabled for this scenario"
+    iters = _run["trace_view"].get("iterations", [])
+    i = _run["cursor"]
+    if i >= len(iters):
+        _run["decisions"].append({"decision": "completed", "iteration": i - 1})
+        return "no more iterations"
+    iteration = iters[i]
+    _run["cursor"] = i + 1
+    tok = sum(int(s.get("tokens", 0) or 0) for s in iteration.get("steps", []))
+    _run["meter"].charge(tok or accounting.estimate_tokens(iteration), "stream")
+    return f"iteration {iteration.get('index', i)}: " + json.dumps(iteration)
+
+
+async def gate(decision: str, reason: str = "", step_id: str = "", failure_type: str = "") -> str:
+    """continue | stop | flag. stop/flag end the run; the last observed iteration is recorded."""
+    if not _enabled("gate"):
+        return "tool disabled for this scenario"
+    if decision not in ("continue", "stop", "flag"):
+        return f"error: decision must be continue|stop|flag, got {decision!r}"
+    if decision == "continue":
+        return "continuing"
+    _run["decisions"].append({
+        "decision": decision, "iteration": max(0, _run["cursor"] - 1),
+        "step_id": step_id or None, "failure_type": failure_type or None,
+    })
+    return f"{decision} recorded"
 
 
 # --- in-process MCP capability serving those tools ---------------------------
@@ -162,6 +263,13 @@ async def _up() -> None:
         server.tool(get_trace_summary)
         server.tool(get_iteration)
         server.tool(get_step)
+        server.tool(search_steps)
+        server.tool(get_errors)
+        server.tool(get_step_io)
+        server.tool(get_budget)
+        server.tool(get_solution)
+        server.tool(observe_next)
+        server.tool(gate)
         _MCP_PORT = _free_port()
         _MCP_SERVER_TASK = asyncio.create_task(
             server.run_async(transport="http", host="127.0.0.1", port=_MCP_PORT, show_banner=False)
@@ -178,24 +286,60 @@ async def _down() -> None:
         with contextlib.suppress(asyncio.CancelledError):
             await _MCP_SERVER_TASK
         _MCP_SERVER_TASK = None
-    _current["trace_view"] = None
+    _run["trace_view"] = None
 
 
 # --- the audit task ----------------------------------------------------------
 @env.template(id="audit-trace")
-async def audit_trace(run_id: "str | None" = None):
-    """Audit one trace: localize the planted fault, classify, explain, fix.
+async def audit_trace(scenario_id: "str | None" = None):
+    if scenario_id is None:
+        scenario_id = next(s for s in _SCENARIOS if s.startswith("audit__"))
+    _begin_run(_SCENARIOS[scenario_id])
+    prompt = build_prompt(_run["trace_view"])
+    _charge_output("prompt", prompt)
+    answer = yield prompt
+    yield score_verdict(answer, _run["trace_view"], _run["ground_truth"])
 
-    Reward per PLAN.md §1.4 (localization + type + judged explanation; clean
-    trace rewards a correct "no fault").
-    """
-    if run_id is None:  # default so `python env.py` / discovery works
-        run_id = next(iter(_TRACES))
-    trace = _TRACES[run_id]
-    trace_view, gt = strip_ground_truth(trace)
-    _current["trace_view"] = trace_view
-    answer = yield build_prompt(trace_view)
-    yield score_verdict(answer, trace_view, gt)
+
+def _gate_reward() -> float:
+    decisions = _run["decisions"]
+    final = next((d for d in decisions if d["decision"] in ("flag", "stop")), None)
+    if final is None:  # ran to end without flag/stop
+        decision, stop_iteration, flagged_type = "completed", None, None
+    else:
+        decision = final["decision"]
+        stop_iteration = final["iteration"]
+        flagged_type = final.get("failure_type")
+    gt = _run["ground_truth"]
+    return reward_mod.compute_gate_reward(
+        decision=decision,
+        stop_iteration=stop_iteration,
+        fault_iteration=_run["fault_iteration"],
+        tokens_spent=_run["meter"].spent,
+        flagged_failure_type=flagged_type,
+        planted_failure_type=(gt or {}).get("failure_type"),
+        lambda_tokens=_run["scenario"].lambda_tokens,
+    )
+
+
+GATE_INSTRUCTIONS = (
+    "You are gating a running agent loop to catch a fault early and save tokens.\n"
+    "- Call observe_next() to reveal the next iteration (it costs tokens).\n"
+    "- After each, call gate('continue') to keep going, or gate('flag', reason, "
+    "step_id, failure_type) the moment you see the planted fault.\n"
+    "- If the run is clean, keep observing until 'no more iterations', then stop.\n"
+    "- Use get_budget() to track spend. Flag as early as possible once you're sure.\n"
+)
+
+
+@env.template(id="gate-trace")
+async def gate_trace(scenario_id: "str | None" = None):
+    if scenario_id is None:
+        scenario_id = next(s for s in _SCENARIOS if s.startswith("gate__"))
+    _begin_run(_SCENARIOS[scenario_id])
+    _charge_output("prompt", GATE_INSTRUCTIONS)
+    _answer = yield GATE_INSTRUCTIONS
+    yield _gate_reward()
 
 
 def build_taskset(traces=None):
@@ -203,7 +347,8 @@ def build_taskset(traces=None):
     traces = traces or list(_TRACES.values())
     out = []
     for t in traces:
-        task = audit_trace(run_id=t["run_id"])
+        scenario_id = f"audit__{t['run_id']}"
+        task = audit_trace(scenario_id=scenario_id)
         task.slug = t["run_id"]
         out.append(task)
     return out
@@ -212,9 +357,10 @@ def build_taskset(traces=None):
 if __name__ == "__main__":
     # No-model smoke: drive a task generator directly and print the reward.
     async def _smoke() -> None:
-        run_id = next(iter(_TRACES))
+        scenario_id = next(s for s in _SCENARIOS if s.startswith("audit__"))
+        run_id = _SCENARIOS[scenario_id].trace_id
         gt = _TRACES[run_id].get("planted_failure")
-        gen = audit_trace.func(run_id=run_id)
+        gen = audit_trace.func(scenario_id=scenario_id)
         prompt = await gen.asend(None)
         print(prompt[:240], "...\n")
         if gt:
