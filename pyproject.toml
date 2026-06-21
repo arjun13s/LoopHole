@@ -10,10 +10,36 @@ dependencies = [
     "modal>=1.5.0",
 ]
 
+[project.scripts]
+loop-auditor = "self_improve.__main__:main"
+loop-auditor-self-improve = "self_improve.__main__:main"
+loop-auditor-self-improve-mcp = "self_improve.mcp_server:main"
+loophole-self-improve = "self_improve.__main__:main"
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
 [dependency-groups]
 dev = ["pytest>=8.0", "pytest-asyncio>=0.23.0"]
+
+[tool.setuptools]
+packages = ["self_improve", "self_improve.tests", "loop_auditor_env", "loop_auditor_env.scripts"]
+
+[tool.setuptools.package-dir]
+loop_auditor_env = "envs/loop_auditor_env"
+"loop_auditor_env.scripts" = "envs/loop_auditor_env/scripts"
+
+[tool.setuptools.package-data]
+self_improve = ["fixtures/*.jsonl", "fixtures/*.md", "fixtures/rich_case/*"]
+loop_auditor_env = [
+    "fixtures/*.json",
+    "rich/*.jsonl",
+    "rich_cases/**/*",
+    "schemas/*.json",
+]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 pythonpath = ["envs"]
-testpaths = ["envs/loop_auditor_env/tests"]
+testpaths = ["envs/loop_auditor_env/tests", "self_improve/tests"]

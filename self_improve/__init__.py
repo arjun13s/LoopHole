@@ -14,3 +14,21 @@ producer's ``signals`` (see ``self_improve/RECONCILE.md`` and taxonomy note §12
 Contract: ``docs/superpowers/specs/2026-06-21-loop-auditor-self-improvement-taxonomy.md``,
 ``schemas/verdict_sidecar.json``, ``schemas/improvement_record.json``.
 """
+
+from .analyzer import (
+    analyze,
+    classify,
+    format_markdown_summary,
+    read_jsonl,
+    sidecar_index,
+    write_jsonl,
+)
+
+__all__ = [
+    "analyze",
+    "classify",
+    "format_markdown_summary",
+    "read_jsonl",
+    "sidecar_index",
+    "write_jsonl",
+]
