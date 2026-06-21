@@ -39,9 +39,22 @@ run_base_eval(traces, backend, model_tag="base", judge=anthropic_judge, out_dir=
 # -> results/eval_results.base.jsonl + results/verdicts.base.jsonl  (dashboard reads these)
 ```
 
+## Real run (after `modal deploy training/modal_infer.py`)
+```bash
+python -m training.run_base_eval \
+  --traces dashboard/fixtures/traces \
+  --base-url https://<workspace>--loophole-base-vllm-serve.modal.run/v1 \
+  --out results            # -> results/eval_results.base.jsonl + verdicts.base.jsonl
+```
+The trained side comes from Person 2's `run_eval` (HUD); the dashboard reads both.
+
 ## Notes / open seams
-- **Judge** (`judge(view, gt, explanation) -> float`) is injected; the real one is an
-  Anthropic-backed rubric scorer, called only when localization is correct.
+- **Explanation scoring is DETERMINISTIC by default** — `deterministic_explanation_scorer`
+  reuses Person 2's pure `fix_grader.grade_fix` (fix-by-comparison) + `citation_gate.check`,
+  so the base baseline is scored byte-identically to the trained side (no LLM judge in the
+  loop — cost). An LLM-judge scorer can be injected for *eval-time refinement only*.
+- `run_base_eval.py` validates traces against the frozen `trace.json` — it will reject
+  Person 1's still-divergent traces (issue #3) loudly rather than silently misscoring.
 - **Fair comparison:** `serialize_fn` is injectable so we can match Person 2's HUD
   serialization at real-run time (so base & trained auditors see identical prompts).
 - **Verdict schema:** emits main's current format (`"NONE"`/`"none"`). When the

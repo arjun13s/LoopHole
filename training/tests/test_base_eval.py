@@ -38,7 +38,8 @@ def test_pipeline_scores_and_writes_schema_valid_output(tmp_path):
         {"fault_present": True, "predicted_step_id": "iter0.step1", "failure_type": "routing", "explanation": "wrong module", "proposed_fix": "edit right one"},
         {"fault_present": False, "predicted_step_id": None, "failure_type": None, "explanation": "clean", "proposed_fix": None},
     ])
-    agg = base_eval.run_base_eval(traces, backend, model_tag="base", judge=lambda v, gt, e: 0.8, out_dir=tmp_path)
+    agg = base_eval.run_base_eval(traces, backend, model_tag="base",
+                                  explanation_scorer=lambda verdict, gt, view: 0.8, out_dir=tmp_path)
 
     assert agg["n"] == 2
     assert math.isclose(agg["localization_accuracy"], 1.0)
@@ -55,14 +56,33 @@ def test_pipeline_scores_and_writes_schema_valid_output(tmp_path):
 
 def test_pipeline_robust_to_non_json_output(tmp_path):
     backend = DummyBackend(["I think the bug is somewhere but I'm not sure"])  # not JSON
-    agg = base_eval.run_base_eval([_buggy()], backend, judge=lambda *a: 1.0, out_dir=tmp_path)
+    agg = base_eval.run_base_eval([_buggy()], backend, explanation_scorer=lambda *a: 1.0, out_dir=tmp_path)
     assert agg["localization_accuracy"] == 0.0  # unparseable -> wrong, no crash
     assert agg["mean_reward"] == 0.0
 
 
-def test_judge_not_called_when_localization_wrong():
+def test_scorer_not_called_when_localization_wrong():
     calls = []
     backend = DummyBackend([{"fault_present": True, "predicted_step_id": "iter0.step0", "failure_type": "safety", "explanation": "x", "proposed_fix": "y"}])
-    agg = base_eval.run_base_eval([_buggy()], backend, judge=lambda *a: calls.append(1) or 1.0)
-    assert calls == []  # explanation judge only runs on correct localization
+    agg = base_eval.run_base_eval([_buggy()], backend, explanation_scorer=lambda *a: calls.append(1) or 1.0)
+    assert calls == []  # explanation scorer only runs on correct localization
     assert agg["mean_reward"] == 0.0
+
+
+def test_deterministic_scorer_reuses_p2_modules_and_is_default(monkeypatch, tmp_path):
+    # The default scorer is Person 2's deterministic fix-by-comparison + citation gate.
+    s = base_eval.deterministic_explanation_scorer(base_traces_dir=tmp_path)
+    assert callable(s)  # constructing it imports loop_auditor_env's PURE modules cleanly
+
+    # With no scorer injected, run_base_eval falls back to that deterministic default.
+    used = {}
+
+    def _stub_scorer(verdict, gt, view):
+        used["called"] = True
+        return 0.5
+
+    monkeypatch.setattr(base_eval, "deterministic_explanation_scorer", lambda *a, **k: _stub_scorer)
+    backend = DummyBackend([{"fault_present": True, "predicted_step_id": "iter0.step1", "failure_type": "routing", "explanation": "wrong module", "proposed_fix": "edit right one"}])
+    agg = base_eval.run_base_eval([_buggy()], backend)
+    assert used.get("called") is True
+    assert math.isclose(agg["mean_reward"], 1.0 + 0.3 + 0.5 * 0.5)

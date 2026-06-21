@@ -1,57 +1,53 @@
 """Modal app: serve base Qwen2.5-7B-Instruct via vLLM (OpenAI-compatible).
 
-This is the REAL backend behind `ModalBackend` (training/backends.py). It is the
-ONLY piece that needs GPUs + your Modal token, so it's wired last; the rest of the
-b1 pipeline (scoring, base_eval, DummyBackend) is fully built and tested on mocks.
+The model weights are baked into the IMAGE at build time (`run_function`), so the
+runtime cold start has nothing to download and vLLM binds port 8000 well within
+`startup_timeout`. (The earlier 1-hour hangs were a startup timeout: a 15 GB runtime
+download + slow init exceeded the 15-min window.)
 
-!!! VERIFY against current Modal docs before `modal deploy` (API names drift across
-versions). Confirm: (1) `gpu=` value format ("A100-80GB"), (2) `@modal.web_server`
-vs asgi for serving, (3) the idle-timeout kwarg name (`scaledown_window` in recent
-Modal; older: `container_idle_timeout`), (4) the pinned vllm version. Run:
-    modal deploy training/modal_infer.py
-Then point ModalBackend at the printed URL:
-    base_url = "https://<workspace>--loophole-base-vllm-serve.modal.run/v1"
+Verified against Modal 1.5.0. Deploy:
+    training/.venv/bin/modal deploy training/modal_infer.py
+Then point ModalBackend / run_base_eval --base-url at the printed
+…--loophole-base-vllm-serve.modal.run/v1 URL.
 
-Secrets: set your Modal token yourself (`modal token new`) — never committed here.
-Qwen2.5-7B-Instruct is open-weight (no HF gating), so no HF token is required.
+Set your Modal token yourself (`modal token set …`) — never committed here.
+Qwen2.5-7B-Instruct is open-weight (no HF gating).
 """
 
 from __future__ import annotations
 
-import os
 import subprocess
 
 import modal
 
-MODEL_NAME = os.environ.get("LOOP_AUDITOR_MODEL", "Qwen/Qwen2.5-7B-Instruct")
+MODEL_NAME = "Qwen/Qwen2.5-7B-Instruct"  # static: baked into the image at build
 VLLM_PORT = 8000
 GPU = "A100-80GB"  # Qwen2.5-7B + vLLM fits comfortably; cheaper than H100.
 
-# Persisted HF weights cache so the model is downloaded once, not per cold start.
-hf_cache = modal.Volume.from_name("loophole-hf-cache", create_if_missing=True)
+
+def _download_model() -> None:
+    """Pre-download weights at build so they're committed into the image layer."""
+    from huggingface_hub import snapshot_download
+
+    snapshot_download(MODEL_NAME)
+
 
 vllm_image = (
     modal.Image.debian_slim(python_version="3.12")
-    .pip_install("vllm==0.6.6", "huggingface_hub[hf_transfer]==0.26.2")
-    .env({"HF_HUB_ENABLE_HF_TRANSFER": "1", "VLLM_USE_V1": "1"})
+    .pip_install("vllm==0.21.0", "hf_transfer", "huggingface_hub")  # vllm pin: adjustable
+    .env({"HF_HUB_ENABLE_HF_TRANSFER": "1"})
+    .run_function(_download_model)  # bakes the 15 GB of weights into the image
 )
 
 app = modal.App("loophole-base-vllm")
 
 
-@app.function(
-    image=vllm_image,
-    gpu=GPU,
-    volumes={"/root/.cache/huggingface": hf_cache},
-    timeout=30 * 60,
-    scaledown_window=5 * 60,  # VERIFY kwarg name for your Modal version
-)
+@app.function(image=vllm_image, gpu=GPU, timeout=30 * 60, scaledown_window=5 * 60)
 @modal.concurrent(max_inputs=32)
-@modal.web_server(port=VLLM_PORT, startup_timeout=15 * 60)
+@modal.web_server(port=VLLM_PORT, startup_timeout=25 * 60)
 def serve() -> None:
-    """Launch vLLM's OpenAI-compatible server; exposes /v1/chat/completions."""
-    # List form, no shell: MODEL_NAME comes from an env var, so this avoids any
-    # shell-metacharacter / command-injection risk.
+    """Launch vLLM's OpenAI server; weights load from the image (no download)."""
+    # Inherit stdout/stderr so vLLM startup logs are visible in `modal app logs`.
     subprocess.Popen([
         "vllm", "serve", MODEL_NAME,
         "--host", "0.0.0.0", "--port", str(VLLM_PORT),
