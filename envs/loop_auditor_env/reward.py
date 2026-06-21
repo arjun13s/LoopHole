@@ -47,3 +47,37 @@ def compute_reward(
     if localization_correct:
         reward += config.W_EXPLANATION * float(explanation_score)
     return reward
+
+
+def compute_gate_reward(
+    decision: str,
+    stop_iteration: "int | None",
+    fault_iteration: "int | None",
+    tokens_spent: int,
+    flagged_failure_type: "str | None" = None,
+    planted_failure_type: "str | None" = None,
+    lambda_tokens: "float | None" = None,
+) -> float:
+    """Design Y reward. decision in {'flag','stop','completed'}.
+
+    Buggy (fault_iteration is not None): caught = flagged at/after the fault ->
+        1.0 + 0.3*(flagged_failure_type == planted_failure_type) - lambda*tokens.
+    Clean (fault_iteration is None): completed with no flag/stop -> 1.0 - lambda*tokens,
+        else 0.0 - lambda*tokens (false abort).
+    """
+    lam = config.LAMBDA_TOKENS if lambda_tokens is None else lambda_tokens
+    penalty = lam * max(0, int(tokens_spent))
+
+    if fault_iteration is None:  # clean trace
+        base = 1.0 if decision == "completed" else 0.0
+        return base - penalty
+
+    caught = (
+        decision == "flag"
+        and stop_iteration is not None
+        and stop_iteration >= fault_iteration
+    )
+    base = 1.0 if caught else 0.0
+    if caught and flagged_failure_type is not None and flagged_failure_type == planted_failure_type:
+        base += 0.3
+    return base - penalty
