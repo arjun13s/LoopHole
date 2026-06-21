@@ -37,7 +37,7 @@ def fault_iteration(trace: dict) -> "int | None":
     return None
 
 
-def enumerate_scenarios(traces, solution_ablation: bool = False) -> list:
+def enumerate_scenarios(traces, solution_ablation: bool = False) -> "list[Scenario]":
     """One audit + one gate scenario per trace; optional get_solution ablation."""
     out = []
     for t in traces:

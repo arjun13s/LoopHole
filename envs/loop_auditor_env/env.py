@@ -6,8 +6,11 @@ hud-python 0.6.x):
   * ``@env.template`` — a task: ``answer = yield prompt`` returns the agent's
     verdict (JSON text), then ``yield reward`` (PLAN.md §1.4).
   * an in-process MCP **capability** (FastMCP started in ``@env.initialize``)
-    exposing inspection tools: ``get_trace_summary``, ``get_iteration``,
-    ``get_step``. The auditor drills into suspicious steps, then emits a verdict.
+    exposing ten tools to the agent: investigation tools (get_trace_summary,
+    get_iteration, get_step, search_steps, get_errors, get_step_io), budget/
+    solution tools (get_budget, get_solution), and gate stream tools
+    (observe_next, gate). The auditor drills into suspicious steps or gates
+    a live replay, then emits a verdict or final gate decision.
 
 Run:  hud serve env:env   |   hud eval tasks.py claude --gateway   |   python env.py (smoke)
 
@@ -216,7 +219,7 @@ async def observe_next() -> str:
 
 
 async def gate(decision: str, reason: str = "", step_id: str = "", failure_type: str = "") -> str:
-    """continue | stop | flag. stop/flag end the run; the last observed iteration is recorded."""
+    """Record a continue|stop|flag decision (optional step_id/failure_type). Recording does not end the rollout; the run's outcome is derived from the recorded decisions."""
     if not _enabled("gate"):
         return "tool disabled for this scenario"
     if decision not in ("continue", "stop", "flag"):
@@ -303,18 +306,25 @@ async def audit_trace(scenario_id: "str | None" = None):
 
 def _gate_reward() -> float:
     decisions = _run["decisions"]
-    final = next((d for d in decisions if d["decision"] in ("flag", "stop")), None)
-    if final is None:  # ran to end without flag/stop
-        decision, stop_iteration, flagged_type = "completed", None, None
-    else:
-        decision = final["decision"]
-        stop_iteration = final["iteration"]
-        flagged_type = final.get("failure_type")
+    flags = [d for d in decisions if d["decision"] == "flag"]
     gt = _run["ground_truth"]
+    fault = _run["fault_iteration"]
+    if fault is not None:
+        caught = [d for d in flags if d["iteration"] >= fault]
+        chosen = caught[-1] if caught else (flags[0] if flags else None)
+        if chosen is not None:
+            decision, stop_iteration, flagged_type = "flag", chosen["iteration"], chosen.get("failure_type")
+        else:
+            decision, stop_iteration, flagged_type = "completed", None, None
+    else:  # clean: a flag is a false positive; stop/observe-to-end are both fine
+        if flags:
+            decision, stop_iteration, flagged_type = "flag", flags[0]["iteration"], flags[0].get("failure_type")
+        else:
+            decision, stop_iteration, flagged_type = "completed", None, None
     return reward_mod.compute_gate_reward(
         decision=decision,
         stop_iteration=stop_iteration,
-        fault_iteration=_run["fault_iteration"],
+        fault_iteration=fault,
         tokens_spent=_run["meter"].spent,
         flagged_failure_type=flagged_type,
         planted_failure_type=(gt or {}).get("failure_type"),
@@ -327,7 +337,7 @@ GATE_INSTRUCTIONS = (
     "- Call observe_next() to reveal the next iteration (it costs tokens).\n"
     "- After each, call gate('continue') to keep going, or gate('flag', reason, "
     "step_id, failure_type) the moment you see the planted fault.\n"
-    "- If the run is clean, keep observing until 'no more iterations', then stop.\n"
+    "- If the run is clean, keep observing until 'no more iterations' — do NOT flag a clean run.\n"
     "- Use get_budget() to track spend. Flag as early as possible once you're sure.\n"
 )
 

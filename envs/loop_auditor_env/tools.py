@@ -9,6 +9,8 @@ env.py converts the exception into a tool-friendly error message for the agent.
 
 from __future__ import annotations
 
+import json as _json
+
 try:  # package (pytest) | flat (hud `env:env`)
     from .serialize import summarize_trace
 except ImportError:
@@ -51,9 +53,6 @@ def get_step(trace: dict, step_id: str) -> dict:
             if isinstance(step, dict) and step.get("step_id") == step_id:
                 return step
     raise KeyError(f"step_id not found: {step_id}")
-
-
-import json as _json
 
 
 def _iter_steps(trace: dict):

@@ -23,7 +23,7 @@ def estimate_tokens(text) -> int:
 class TokenMeter:
     budget: "int | None" = None
     spent: int = 0
-    breakdown: dict = field(default_factory=dict)
+    breakdown: "dict[str, int]" = field(default_factory=dict)
 
     def charge(self, amount: int, category: str) -> int:
         amount = max(0, int(amount))
