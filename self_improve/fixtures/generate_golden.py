@@ -227,6 +227,15 @@ def build() -> list:
                 "suggested_alias": {}}))
 
     out.append(case(
+        "artifact_miss_candidate", note="full credit, rich, tool-calls UNKNOWN, path named -> inferred (candidate)",
+        trace_view=trace("g18", rich=True), ground_truth=gt(),
+        raw=verdict(True, "a2", "tool_misuse",
+                    "It read repo/src/config.py but submitted despite failing tests.", GOOD_FIX),
+        tool_calls=None,  # unknown -> candidate, not observed
+        expect={"bucket": "artifact_miss", "fix_type": "prompt_change",
+                "confidence": "candidate", "severity": "low", "suggested_alias": {}}))
+
+    out.append(case(
         "healthy_no_record", note="fully correct run -> classify returns None",
         trace_view=trace("g16"), ground_truth=gt(),
         raw=verdict(True, "a2", "tool_misuse", "The worker submitted despite failing tests.", GOOD_FIX),
