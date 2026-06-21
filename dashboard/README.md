@@ -1,7 +1,13 @@
 # `dashboard` — Loop-Auditor TUI dashboard (Person 3)
 
-The demo **money-shot**: base-vs-trained auditor on held-out traces, trace replay with the
-planted-failure step highlighted, verdict drill-down, and an honest auditor-token-cost chart.
+The demo **money-shot** (top-down): a one-line **headline takeaway**, the base-vs-trained
+metric table, a **per-fault-type localization breakdown**, an honest auditor-token-cost chart,
+then per-trace replay with the planted-failure step highlighted + verdict drill-down. A
+**provenance subtitle** distinguishes illustrative demo fixtures from a real held-out eval, and
+an absent trained side renders as **"pending"** (never a misleading 0%).
+
+The bundled fixtures are **real** Person-1 `live_qwen` traces (regenerate with
+`dashboard/fixtures/generate_money_shot.py`); the demo verdicts are illustrative and labeled as such.
 
 **Rich static-render is the primary surface** — it prints to stdout, so it is fully visible
 **inside Claude Code / Codex / any CLI agent** and screenshots cleanly. An interactive Textual

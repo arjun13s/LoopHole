@@ -23,21 +23,41 @@ def test_dashboard_renders_money_shot_and_replay():
     verdicts = loader.load_verdicts(verdicts_path)
     traces = loader.load_traces(trace_paths)
 
-    out = _capture(render.dashboard(records, verdicts, traces))
+    out = _capture(render.dashboard(records, verdicts, traces, source_label="demo fixtures"))
 
+    # Headline takeaway banner (money-shot first).
+    assert "catches every planted fault" in out
+    # Provenance subtitle so the surface never misleads.
+    assert "demo fixtures" in out
     # Money-shot framing + the base-vs-trained delta exist.
     assert "Base vs Trained" in out
     assert "Localization accuracy" in out
-    # Trained localized 3/3 vs base 1/3.
-    assert "100%" in out and "33%" in out
+    assert "100%" in out  # trained localizes every fault
     # Honest token chart, not a fabricated "tokens saved".
     assert "cheaper audit" in out
     assert "tokens saved" not in out.lower()
+    # Per-fault-type breakdown across the three schema-valid fault types.
+    assert "Localization by fault type" in out
+    for ft in ("routing", "resource_misuse", "tool_misuse"):
+        assert ft in out
     # Trace replay highlights the planted fault and the clean trace.
     assert "PLANTED FAULT" in out
     assert "clean trace" in out
-    # Verdict drill-down shows the trained model's correct localization.
-    assert "iter0.step1.overwrite-limit" in out
+    # Verdict drill-down shows the trained model's correct localization (routing → a008).
+    assert "Step a008 is the fault" in out
+
+
+def test_trained_pending_shows_no_misleading_zero():
+    # Base-only (real run before the trained model lands): the Trained column must
+    # read "pending", never a fake 0% with a negative Δ.
+    base_only = [
+        {"localization_correct": True, "failure_type_correct": True, "explanation_score": 0.0,
+         "reward": 1.0, "trace_tokens": 10, "auditor_tokens": 200, "model": "base", "run_id": "a"},
+    ]
+    out = _capture(render.dashboard(base_only, {}, {}))
+    assert "pending" in out.lower()
+    assert "trained run pending" in out.lower()  # headline reflects it
+    assert "-1.00" not in out and "-100%" not in out  # no fabricated negative delta
 
 
 def test_token_chart_marks_trained_cheaper():

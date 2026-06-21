@@ -31,6 +31,13 @@ def _build_parser() -> argparse.ArgumentParser:
     return p
 
 
+def _source_label(args) -> str:
+    """Provenance subtitle so the surface never misleads about what's real."""
+    if args.mock or not args.results:
+        return "demo fixtures · illustrative verdicts on real held-out traces"
+    return "real held-out eval"
+
+
 def run_static(args) -> int:
     results_paths, verdicts_path, trace_paths = loader.resolve_inputs(args)
     console = Console()
@@ -41,7 +48,7 @@ def run_static(args) -> int:
     except (loader.ValidationError, FileNotFoundError, ValueError) as exc:
         console.print(f"[bold red]Failed to load dashboard inputs:[/] {exc}")
         return 1
-    console.print(render.dashboard(records, verdicts, traces))
+    console.print(render.dashboard(records, verdicts, traces, source_label=_source_label(args)))
     return 0
 
 

@@ -35,7 +35,8 @@ def test_sidebar_lists_summary_and_traces():
     async def scenario():
         app = _build_app()
         async with app.run_test():
-            assert len(app.query_one("#sidebar")) == 4  # Summary + 3 traces
+            # Summary row + one row per trace (fixture-count-agnostic).
+            assert len(app.query_one("#sidebar")) == 1 + len(app._run_ids)
 
     asyncio.run(scenario())
 
@@ -52,8 +53,14 @@ def test_summary_is_default_view():
 def test_selecting_trace_shows_planted_fault():
     async def scenario():
         app = _build_app()
+        # Sidebar index of the first trace that actually has a planted fault
+        # (the first sorted trace may be clean). +1 for the Summary row.
+        buggy_idx = 1 + next(
+            i for i, rid in enumerate(app._run_ids)
+            if app._traces[rid].get("planted_failure")
+        )
         async with app.run_test() as pilot:
-            app.query_one("#sidebar").index = 1  # first trace: buggy-resource-001
+            app.query_one("#sidebar").index = buggy_idx
             await pilot.pause()
             assert "PLANTED FAULT" in _detail_text(app)
 
