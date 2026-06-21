@@ -7,7 +7,7 @@ pytest.importorskip("hud")
 from loop_auditor_env import env as E  # noqa: E402
 
 
-async def test_capability_serves_all_ten_tools():
+async def test_capability_serves_all_tools():
     from hud.capabilities.mcp import MCPClient
     await E.env.start()
     try:
@@ -17,6 +17,7 @@ async def test_capability_serves_all_ten_tools():
             assert names == sorted([
                 "get_trace_summary", "get_iteration", "get_step", "search_steps",
                 "get_errors", "get_step_io", "get_budget", "get_solution",
+                "list_artifacts", "read_artifact", "search_artifacts",
                 "observe_next", "gate",
             ])
         finally:

@@ -1,0 +1,4 @@
+diff --git a/src/intervals.py b/src/intervals.py
+@@
+-    # initial implementation
++    # corrected implementation: overlapping or touching intervals are merged

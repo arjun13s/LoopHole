@@ -30,12 +30,13 @@ from hud import Environment
 from hud.capabilities import Capability
 
 try:  # package mode (pytest)
-    from . import accounting, citation_gate, config, fix_grader, judge, rich_loader, scenarios, serialize
+    from . import accounting, artifacts, citation_gate, config, fix_grader, judge, rich_loader, scenarios, serialize
     from . import reward as reward_mod
     from . import tools as tools_mod
     from . import verdict as verdict_mod
 except ImportError:  # flat mode (hud `env:env`)
     import accounting
+    import artifacts
     import citation_gate
     import config
     import fix_grader
@@ -53,6 +54,9 @@ INSTRUCTIONS = (
     "usage, tool use, routing, and which files it touched — NOT its code. Do NOT "
     "review, write, or propose code, implementations, or algorithm changes.\n"
     "- Use the get_iteration and get_step tools to examine suspicious steps.\n"
+    "- Tool outputs may summarize file reads. Do not claim what a file contains "
+    "unless the content is explicitly present in the trace or you inspected it "
+    "with list_artifacts/read_artifact/search_artifacts.\n"
     "- A FAULT is a process problem the agent did NOT recover from:\n"
     "    resource_misuse = wasted context/resources (e.g. read a huge dump instead of the needed file)\n"
     "    tool_misuse     = misused a tool or acted on its bad result (e.g. submitted after tests failed)\n"
@@ -260,6 +264,33 @@ async def get_step_io(step_id: str) -> str:
     return out
 
 
+async def list_artifacts(max_results: int = 200) -> str:
+    """List public case artifact paths (repo files, test outputs, patches, prompts, transcripts)."""
+    if not _enabled("list_artifacts"):
+        return "tool disabled for this scenario"
+    out = json.dumps(artifacts.list_artifacts(_run["trace_view"], max_results=max_results))
+    _charge_output("artifact", out)
+    return out
+
+
+async def read_artifact(path: str, max_chars: int = 4000) -> str:
+    """Read one public case artifact by relative path, truncated to max_chars."""
+    if not _enabled("read_artifact"):
+        return "tool disabled for this scenario"
+    out = json.dumps(artifacts.read_artifact(_run["trace_view"], path, max_chars=max_chars))
+    _charge_output("artifact", out)
+    return out
+
+
+async def search_artifacts(query: str, max_results: int = 20) -> str:
+    """Search public case artifacts for a case-insensitive text query."""
+    if not _enabled("search_artifacts"):
+        return "tool disabled for this scenario"
+    out = json.dumps(artifacts.search_artifacts(_run["trace_view"], query, max_results=max_results))
+    _charge_output("artifact", out)
+    return out
+
+
 async def get_budget() -> dict:
     """Return tokens spent/remaining, the per-category breakdown, and the run's lambda."""
     m = _run["meter"]
@@ -343,6 +374,9 @@ async def _up() -> None:
         server.tool(search_steps)
         server.tool(get_errors)
         server.tool(get_step_io)
+        server.tool(list_artifacts)
+        server.tool(read_artifact)
+        server.tool(search_artifacts)
         server.tool(get_budget)
         server.tool(get_solution)
         server.tool(observe_next)

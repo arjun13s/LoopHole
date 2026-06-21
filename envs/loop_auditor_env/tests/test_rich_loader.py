@@ -17,6 +17,7 @@ def test_load_rich_heldout_normalizes_to_env_schema():
     assert len(traces) == 10
     for t in traces:
         assert t["run_id"] and isinstance(t["iterations"], list) and t["iterations"]
+        assert t["metadata"]["case_dir"].startswith("generated_traces/rich_cases/")
         step = t["iterations"][0]["steps"][0]
         assert _STEP_KEYS <= set(step)
         assert t["iterations"][0]["index"] == 0

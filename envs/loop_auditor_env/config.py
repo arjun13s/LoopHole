@@ -125,5 +125,6 @@ GATE_TURN_LIMIT = int(os.environ.get("LOOP_AUDITOR_GATE_TURN_LIMIT", "32"))
 DEFAULT_ENABLED_TOOLS = frozenset({
     "get_trace_summary", "get_iteration", "get_step",
     "search_steps", "get_errors", "get_step_io",
+    "list_artifacts", "read_artifact", "search_artifacts",
     "get_budget", "observe_next", "gate",
 })  # get_solution OFF by default; scenarios opt it in

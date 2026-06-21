@@ -23,7 +23,7 @@ async def test_all_served_tools_have_descriptions():
         client = await MCPClient.connect(E.env.capability("trace-inspector"))
         try:
             tools = await client.list_tools()
-            assert len(tools) == 10
+            assert len(tools) == 13
             missing = [t.name for t in tools if not (getattr(t, "description", "") or "").strip()]
             assert not missing, f"tools missing descriptions: {missing}"
         finally:

@@ -1,0 +1,4 @@
+FAILED tests/test_ini_parser.py::test_section_keys
+E       AssertionError: keys after a section are assigned globally
+E       Expected: keys are assigned to the active section
+1 failed, 5 passed in 0.06s

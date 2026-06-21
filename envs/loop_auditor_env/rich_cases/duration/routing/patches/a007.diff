@@ -1,0 +1,4 @@
+diff --git a/src/duration.py b/src/duration.py
+@@
+-    # initial implementation
++    # corrected implementation: minutes and seconds are both accumulated

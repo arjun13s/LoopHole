@@ -17,16 +17,45 @@ import json
 from pathlib import Path
 
 
+# Only neutral, factual action keys reach the auditor. content_summary and any
+# other narration are dropped: they editorialize the code/fault and would leak the
+# answer. The auditor judges from path/command/files + test results + tokens.
+_NEUTRAL_INPUT_KEYS = ("path", "command", "files")
+
+
+def _neutral_input(args):
+    if not isinstance(args, dict):
+        return args
+    kept = {k: v for k, v in args.items() if k in _NEUTRAL_INPUT_KEYS}
+    return kept or {k: args[k] for k in list(args)[:1]}
+
+
+def _neutral_output(tool: str, args, result: dict) -> str:
+    """Factual outcome only, never the narrator's framing. Real run outputs
+    (test pass/fail counts) are kept; file ops report the action + path."""
+    if tool in ("run_tests", "run_command"):
+        return result.get("summary") or result.get("status") or ""
+    if isinstance(args, dict) and args.get("path"):
+        verb = {"read_file": "read", "write_file": "wrote"}.get(tool, tool or "acted on")
+        return f"{verb} {args['path']}"
+    if tool == "submit":
+        files = args.get("files") if isinstance(args, dict) else None
+        return f"submitted {files}" if files else "submitted"
+    return result.get("status") or ""
+
+
 def _normalize_step(s: dict) -> dict:
-    """Rich trace.jsonl step -> our ActionSpan schema."""
+    """Rich trace.jsonl step -> our ActionSpan schema, neutralized (no narration
+    that could leak the planted fault)."""
     tool = s.get("tool_name")
+    args = s.get("args")
     result = s.get("result") or {}
     return {
         "step_id": s["step_id"],
         "action_type": "final" if tool == "submit" else "tool_call",
         "tool_name": tool,
-        "input": s.get("args"),
-        "output": result.get("summary"),
+        "input": _neutral_input(args),
+        "output": _neutral_output(tool, args, result),
         "status": result.get("status"),
         "tokens": int(s.get("tokens", 0) or 0),
     }
@@ -35,9 +64,8 @@ def _normalize_step(s: dict) -> dict:
 def normalize_case(row: dict, repo_root) -> dict:
     """Manifest row + its case/ground-truth files -> a normalized trace dict.
 
-    Flat trace.jsonl steps map to one iteration each (index = position, the step's
-    ``summary`` becomes the iteration ``thought``) — faithful to a flat step list
-    and natural for the gate's step-by-step reveal.
+    Flat trace.jsonl steps map to one iteration each (index = position), with
+    narrator summaries removed so the auditor reasons from neutral evidence.
     """
     repo_root = Path(repo_root)
     steps_raw = [
@@ -46,14 +74,18 @@ def normalize_case(row: dict, repo_root) -> dict:
         if line.strip()
     ]
     gt = json.loads((repo_root / row["ground_truth"]).read_text())
+    # Drop the narrator per-step `summary` entirely: it editorializes the fault
+    # ("Read an oversized repository dump...") and would hand the auditor the
+    # answer. The auditor reasons from the neutral actions instead.
     iterations = [
-        {"index": i, "thought": s.get("summary", ""), "steps": [_normalize_step(s)]}
+        {"index": i, "thought": "", "steps": [_normalize_step(s)]}
         for i, s in enumerate(steps_raw)
     ]
     trace = {
         "run_id": row["case_id"],
         "task": row["case_id"].split("__")[0],
         "model": "rich",
+        "metadata": {"case_dir": row.get("case_dir")},
         "iterations": iterations,
         "planted_failure": None,
     }

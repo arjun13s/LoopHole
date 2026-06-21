@@ -1,0 +1,4 @@
+diff --git a/src/config.py b/src/config.py
+@@
+-    # initial implementation
++    # corrected implementation: yes/no/on/off are accepted alongside true/false
