@@ -1,0 +1,6 @@
+# Scoped to /training — avoids touching the shared root .gitignore (conflict-free).
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+*.egg-info/
