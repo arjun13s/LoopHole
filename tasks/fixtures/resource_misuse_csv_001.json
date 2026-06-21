@@ -1,0 +1,105 @@
+{
+  "id": "resource_misuse_csv_001",
+  "env": "LoopAuditorEnv",
+  "task_id": "parse_csv",
+  "agent_name": "synthetic_worker",
+  "agent_version": "v0",
+  "status": "success",
+  "planted_failure": {
+    "step_id": "a1",
+    "failure_type": "resource_misuse",
+    "description": "Loaded full repo dump (~8k tokens) instead of reading the single relevant test file."
+  },
+  "iterations": [
+    {
+      "index": 0,
+      "state_summary": "Read the task specification and the focused CSV parser tests.",
+      "tokens_this_iter": 520,
+      "tokens_cumulative": 520,
+      "actions": [
+        {
+          "id": "a0",
+          "tool_name": "read_file",
+          "arguments": {
+            "path": "tasks/specs/parse_csv.md"
+          },
+          "result_summary": "Read spec: implement parse_csv(text) returning rows; support quoted fields, escaped quotes, and commas inside quotes.",
+          "error": false,
+          "tokens_prompt": 120,
+          "tokens_completion": 160
+        },
+        {
+          "id": "a1",
+          "tool_name": "read_file",
+          "arguments": {
+            "path": "repo_dump/full_repository.txt"
+          },
+          "result_summary": "Loaded full repo dump (~8k tokens) including unrelated build artifacts, docs, dependency locks, and generated code.",
+          "error": false,
+          "tokens_prompt": 4200,
+          "tokens_completion": 4000
+        }
+      ]
+    },
+    {
+      "index": 1,
+      "state_summary": "Implemented the CSV parser.",
+      "tokens_this_iter": 690,
+      "tokens_cumulative": 1210,
+      "actions": [
+        {
+          "id": "a2",
+          "tool_name": "write_file",
+          "arguments": {
+            "path": "src/csv_parser.py",
+            "content_summary": "State-machine parse_csv implementation with quote handling."
+          },
+          "result_summary": "Wrote parse_csv(text) using a small state machine for commas, newlines, and doubled quotes.",
+          "error": false,
+          "tokens_prompt": 260,
+          "tokens_completion": 430
+        }
+      ]
+    },
+    {
+      "index": 2,
+      "state_summary": "Ran the focused tests successfully.",
+      "tokens_this_iter": 260,
+      "tokens_cumulative": 1470,
+      "actions": [
+        {
+          "id": "a3",
+          "tool_name": "run_tests",
+          "arguments": {
+            "command": "pytest tests/test_parse_csv.py"
+          },
+          "result_summary": "4 passed in 0.03s",
+          "error": false,
+          "tokens_prompt": 120,
+          "tokens_completion": 140
+        }
+      ]
+    },
+    {
+      "index": 3,
+      "state_summary": "Submitted the completed parser.",
+      "tokens_this_iter": 150,
+      "tokens_cumulative": 1620,
+      "actions": [
+        {
+          "id": "a4",
+          "tool_name": "submit",
+          "arguments": {
+            "files": [
+              "src/csv_parser.py"
+            ]
+          },
+          "result_summary": "Submitted parse_csv implementation.",
+          "error": false,
+          "tokens_prompt": 70,
+          "tokens_completion": 80
+        }
+      ]
+    }
+  ]
+}
