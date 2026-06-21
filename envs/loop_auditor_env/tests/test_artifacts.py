@@ -1,6 +1,9 @@
+import json
 from pathlib import Path
 
-from loop_auditor_env import artifacts
+import pytest
+
+from loop_auditor_env import artifacts, config
 
 
 def _trace(tmp_path: Path) -> dict:
@@ -52,3 +55,23 @@ def test_infers_local_rich_case_dir():
     trace = {"run_id": "ini_parser__routing", "iterations": []}
     paths = artifacts.list_artifacts(trace, max_results=5)
     assert "repo/README.md" in paths
+
+
+def test_vendored_rich_cases_resolve_and_are_nonempty():
+    """Every vendored trace must resolve to a NON-EMPTY case dir via its metadata.
+
+    Guards the deploy-time '0 reward because the auditor can't open any file'
+    trap: the manifest's metadata.case_dir must point at the shipped tree
+    (resolvable when PKG_DIR == /app) and that dir must have readable artifacts.
+    """
+    for split in ("train", "heldout"):
+        manifest = config.PKG_DIR / "rich" / f"{split}.jsonl"
+        if not manifest.exists():
+            pytest.skip("vendored rich taskset not present")
+        for line in manifest.read_text().splitlines():
+            if not line.strip():
+                continue
+            t = json.loads(line)
+            assert (config.PKG_DIR / t["metadata"]["case_dir"]).is_dir(), t["run_id"]
+            assert artifacts.resolve_case_dir(t) is not None, t["run_id"]
+            assert artifacts.list_artifacts(t), t["run_id"]  # non-empty
