@@ -17,5 +17,7 @@ judge = ["anthropic>=0.40"]
 dev = ["pytest>=8.0"]
 
 [tool.pytest.ini_options]
-pythonpath = [".."]
+# ".." => repo root (the `training` package); "../envs" => Person 2's pure modules
+# (loop_auditor_env.fix_grader / citation_gate) reused for identical base/trained scoring.
+pythonpath = ["..", "../envs"]
 testpaths = ["tests"]

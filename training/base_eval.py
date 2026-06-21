@@ -49,12 +49,35 @@ def _sidecar(run_id: str, model_tag: str, verdict: dict) -> dict:
     return {"run_id": run_id, "model": model_tag, **{k: verdict.get(k) for k in VERDICT_KEYS}}
 
 
+def deterministic_explanation_scorer(base_traces_dir=None):
+    """Default explanation scorer: DETERMINISTIC fix-by-comparison + citation gate.
+
+    Reuses Person 2's PURE modules (`fix_grader`, `citation_gate`) so the base
+    baseline is scored byte-identically to the trained side (`eval_harness`) — the
+    only way base-vs-trained is a fair comparison. No LLM judge in the loop (cost).
+    Importing loop_auditor_env needs `envs/` on the path (root pyproject sets it).
+    """
+    from loop_auditor_env import citation_gate, fix_grader
+    from loop_auditor_env import config as la_config
+
+    base_dir = base_traces_dir or la_config.BASE_TRACES_DIR
+
+    def score(verdict: dict, ground_truth: dict, view: dict) -> float:
+        s = fix_grader.grade_fix(verdict, ground_truth, view, base_dir)
+        # Conservative anti-hallucination: a fabricated step ref zeros the score.
+        if not citation_gate.check(verdict, view)["passed"]:
+            return 0.0
+        return float(s)
+
+    return score
+
+
 def run_base_eval(
     traces: list[dict],
     backend,
     *,
     model_tag: str = "base",
-    judge=None,
+    explanation_scorer=None,
     serialize_fn=None,
     out_dir=None,
     max_tokens: int = 512,
@@ -62,11 +85,14 @@ def run_base_eval(
 ) -> dict:
     """Run the auditor over `traces`, write JSONL (if `out_dir`), return aggregates.
 
-    `judge(view, ground_truth, explanation) -> float` is called ONLY when the auditor
-    localizes a real fault correctly (the only case where explanation_score counts).
+    `explanation_scorer(verdict, ground_truth, view) -> float` is called ONLY when the
+    auditor localizes a real fault correctly. Defaults to the deterministic scorer
+    (identical to the trained side); pass an LLM-judge scorer only for eval-time
+    refinement, never in a GRPO loop.
     """
     build = serialize_fn or prompt_mod.build_messages
     validator = _eval_result_validator() if validate else None
+    scorer = explanation_scorer
     records: list[dict] = []
     verdicts: list[dict] = []
 
@@ -81,8 +107,10 @@ def run_base_eval(
                        "explanation": str(text)[:300], "proposed_fix": None}
 
         explanation_score = 0.0
-        if gt is not None and judge is not None and verdict.get("predicted_step_id") == gt["step_id"]:
-            explanation_score = float(judge(view, gt, verdict.get("explanation", "")))
+        if gt is not None and verdict.get("predicted_step_id") == gt["step_id"]:
+            if scorer is None:  # lazy default: only imports loop_auditor_env when needed
+                scorer = deterministic_explanation_scorer()
+            explanation_score = float(scorer(verdict, gt, view))
 
         record = scoring.score_record(
             trace["run_id"], model_tag, verdict, gt,
