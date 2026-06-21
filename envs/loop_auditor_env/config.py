@@ -85,6 +85,23 @@ def _resolve_rich_taskset_dir() -> Path:
 # Manifest rows reference case/ground-truth paths relative to the repo root.
 RICH_TASKSET_DIR = _resolve_rich_taskset_dir()
 
+
+def _resolve_live_taskset_dir() -> Path:
+    """Locate the live_qwen taskset manifest dir (generated_traces/live_qwen/
+    {train,heldout}.jsonl, built by scripts/build_live_manifest.py): env override,
+    repo-root, then a vendored copy beside the env."""
+    override = os.environ.get("LOOP_AUDITOR_LIVE_TASKSET_DIR")
+    if override:
+        return Path(override)
+    for candidate in (REPO_ROOT / "generated_traces" / "live_qwen", PKG_DIR / "live_qwen"):
+        if (candidate / "heldout.jsonl").exists():
+            return candidate
+    return REPO_ROOT / "generated_traces" / "live_qwen"
+
+
+# Person 1's live-Qwen taskset (real worker traces; same rich manifest shape).
+LIVE_TASKSET_DIR = _resolve_live_taskset_dir()
+
 # --- model (single source of truth; chosen at H0) ----------------------------
 # The trainable fork (Qwen3-8B via Tinker), created with `hud models fork`. Used
 # for BOTH the rollout agent and TrainingClient. Override with LOOP_AUDITOR_MODEL

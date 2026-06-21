@@ -107,6 +107,10 @@ def select_traces() -> "list[dict]":
         return _load_rich(ds.split("_", 1)[1])
     if ds == "rich_all":
         return _load_rich("train") + _load_rich("heldout")
+    if ds in ("live_train", "live_heldout"):
+        return _load_live(ds.split("_", 1)[1])
+    if ds == "live_all":
+        return _load_live("train") + _load_live("heldout")
     p = Path(ds)
     return load_fixture_traces(p) if p.is_dir() else load_jsonl_traces(p)
 
@@ -121,6 +125,18 @@ def _load_rich(split: str) -> "list[dict]":
     if vendored.exists():
         return load_jsonl_traces(vendored)
     return rich_loader.load_rich_taskset(config.RICH_TASKSET_DIR / f"{split}.jsonl", config.REPO_ROOT)
+
+
+def _load_live(split: str) -> "list[dict]":
+    """Live-Qwen traces for ``split``: the vendored normalized JSONL
+    (PKG_DIR/live/<split>.jsonl, baked into a deploy image) when present, else
+    normalize the live manifest on the fly (local dev). Same rich manifest shape,
+    so rich_loader handles it. Build the manifest with scripts/build_live_manifest.py.
+    """
+    vendored = config.PKG_DIR / "live" / f"{split}.jsonl"
+    if vendored.exists():
+        return load_jsonl_traces(vendored)
+    return rich_loader.load_rich_taskset(config.LIVE_TASKSET_DIR / f"{split}.jsonl", config.REPO_ROOT)
 
 
 def strip_ground_truth(trace: dict) -> "tuple[dict, dict | None]":
