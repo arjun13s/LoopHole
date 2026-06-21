@@ -51,3 +51,10 @@ def test_token_chart_marks_trained_cheaper():
     ])
     out = _capture(render.token_chart(base, trained))
     assert "200" in out and "120" in out
+
+
+def test_style_constants_use_palette_hexes():
+    # base=red / trained=green money-shot palette, shared with the TUI.
+    assert render._GOOD == "bold #22C55E"
+    assert render._BAD == "bold #EF4444"
+    assert render._DIM == "#94A3B8"

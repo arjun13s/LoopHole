@@ -15,9 +15,9 @@ from rich.tree import Tree
 
 from . import model as model_mod
 
-_GOOD = "bold green"
-_BAD = "bold red"
-_DIM = "dim"
+_GOOD = "bold #22C55E"
+_BAD = "bold #EF4444"
+_DIM = "#94A3B8"
 
 
 def _pct(x: float) -> str:
@@ -61,7 +61,7 @@ def token_chart(base: model_mod.Aggregate, trained: model_mod.Aggregate) -> Pane
     width = 34
     peak = max(base.total_auditor_tokens, trained.total_auditor_tokens, 1)
     rows = []
-    for label, agg, style in (("base", base, "yellow"), ("trained", trained, "green")):
+    for label, agg, style in (("base", base, "#EF4444"), ("trained", trained, "#22C55E")):
         filled = round(width * agg.total_auditor_tokens / peak)
         bar = Text("█" * filled, style=style) + Text("░" * (width - filled), style=_DIM)
         rows.append(Text(f"{label:>8}  ") + bar + Text(f"  {agg.total_auditor_tokens}"))
@@ -124,7 +124,7 @@ def verdict_panel(trace: dict, verdicts: dict) -> Panel | None:
     if not base_v and not trained_v:
         return None
     t = Table(box=box.MINIMAL, show_header=True, expand=True)
-    t.add_column("base", style="yellow", ratio=1); t.add_column("trained", style="green", ratio=1)
+    t.add_column("base", style="#EF4444", ratio=1); t.add_column("trained", style="#22C55E", ratio=1)
     t.add_row(
         (base_v or {}).get("explanation", "—"),
         (trained_v or {}).get("explanation", "—"),
