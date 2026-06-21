@@ -90,6 +90,29 @@ def test_load_traces_keys_by_run_id(tmp_path):
     assert traces["x"]["task"] == "t"
 
 
+def test_load_traces_accepts_wrong_file_edit_with_structured_fix(tmp_path):
+    t = {
+        "run_id": "wrong-file", "task": "t", "iterations": [
+            {"index": 0, "steps": [{"step_id": "a007", "action_type": "tool_call"}]}
+        ],
+        "planted_failure": {
+            "step_id": "a007",
+            "failure_type": "wrong_file_edit",
+            "description": "edited the sibling helper instead of the intended implementation file",
+            "fix": {
+                "action": "replace",
+                "step_id": "a007",
+                "target": "repo/src/date_ranges.py",
+                "tool_name": "write_file",
+            },
+        },
+    }
+    p = tmp_path / "wrong-file.json"
+    p.write_text(json.dumps(t))
+    traces = loader.load_traces([p])
+    assert traces["wrong-file"]["planted_failure"]["failure_type"] == "wrong_file_edit"
+
+
 def test_resolve_inputs_mock_returns_bundled_fixtures():
     args = argparse.Namespace(mock=True, results=None, verdicts=None, traces=None)
     results, verdicts, traces = loader.resolve_inputs(args)

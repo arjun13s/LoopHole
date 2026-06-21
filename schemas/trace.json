@@ -61,9 +61,35 @@
         },
         "failure_type": {
           "type": "string",
-          "enum": ["resource_misuse", "tool_misuse", "routing", "safety"]
+          "enum": ["resource_misuse", "tool_misuse", "routing", "safety", "wrong_file_edit"]
         },
-        "description": { "type": "string" }
+        "description": { "type": "string" },
+        "fix": { "$ref": "#/$defs/PlantedFix" }
+      }
+    },
+    "PlantedFix": {
+      "type": "object",
+      "description": "Structured deterministic process repair used by graders and analysis tools.",
+      "required": ["action", "step_id", "target", "tool_name"],
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "type": "string",
+          "enum": ["replace", "insert"],
+          "description": "Whether the corrective action replaces the faulty step or inserts a missing step."
+        },
+        "step_id": {
+          "type": "string",
+          "description": "Fault step this repair targets."
+        },
+        "target": {
+          "type": "string",
+          "description": "Correct file, artifact, or insertion point for the repair."
+        },
+        "tool_name": {
+          "type": "string",
+          "description": "Tool the repaired process should use."
+        }
       }
     }
   }

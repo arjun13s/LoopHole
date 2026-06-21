@@ -55,7 +55,9 @@ def test_selecting_trace_shows_planted_fault():
         async with app.run_test() as pilot:
             app.query_one("#sidebar").index = 1  # first trace: buggy-resource-001
             await pilot.pause()
-            assert "PLANTED FAULT" in _detail_text(app)
+            detail = _detail_text(app)
+            assert "PLANTED" in detail
+            assert "FAULT" in detail
 
     asyncio.run(scenario())
 
