@@ -35,6 +35,11 @@ def test_prompt_says_recovered_process_faults_still_count():
     assert "fault may be recovered later" in prompt
     assert "process mistake" in prompt
     assert "later recovers" in prompt
+    assert "reading a README/doc before focused work can be normal" in prompt
+    assert "choose the wasteful read/context step itself" in prompt
+    assert "wrong_file_edit at the earlier write_file step" in prompt
+    assert "not merely editing again after a failed test" in prompt
+    assert "healthy test-fail -> diagnose -> fix -> rerun -> pass loops" in prompt
     assert "Artifact context is available" not in prompt
 
 
