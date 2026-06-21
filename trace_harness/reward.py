@@ -1,4 +1,12 @@
-"""Deterministic reward for structured auditor verdicts."""
+"""Deterministic reward for structured auditor verdicts.
+
+NOT the live scorer. This is a standalone generator-side helper that scores a
+verdict against a rich GROUND-TRUTH record (keys ``fault_present`` /
+``fault_step_id``; weights 0.45/0.25/0.20/0.10, max 1.0). The env's GRPO/eval
+reward is envs/loop_auditor_env/reward.py (keys ``step_id`` /
+``failure_type``; weights 1.0/0.3/0.5, max 1.8) — do NOT cross the two: this
+function KeyErrors on the env's planted_failure dict and uses a different scale.
+"""
 
 from __future__ import annotations
 
