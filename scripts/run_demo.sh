@@ -3,6 +3,7 @@
 #
 #   ./scripts/run_demo.sh            # MOCK: render the dashboard on bundled fixtures (works today, no HUD)
 #   ./scripts/run_demo.sh --mock     # explicit mock
+#   ./scripts/run_demo.sh --tui      # interactive Textual TUI on bundled fixtures (needs a real terminal)
 #   ./scripts/run_demo.sh --real     # REAL: run Person 2's eval harness for base+trained, then render
 #
 # Conflict-free by construction: this script only INVOKES other streams through

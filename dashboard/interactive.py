@@ -29,8 +29,9 @@ class _DetailLabel(Label):
     """
 
     @property
-    def renderable(self):  # type: ignore[override]
+    def renderable(self):  # type: ignore[override]  # parent stores content under .content in Textual >=0.60
         return self.content
+
 
 # Dark slate "Developer Tool / IDE" palette (see the design spec).
 _BG = "#0F172A"
@@ -56,7 +57,7 @@ class LoopholeTUI(App):
     TITLE = "LOOPHOLE · Loop-Auditor"
     BINDINGS = [
         Binding("s", "summary", "summary"),
-        Binding("enter", "scroll_top", "open"),
+        Binding("enter", "scroll_top", "open"),  # deliberately overrides ListView's default select_cursor to scroll the detail pane
         Binding("j", "cursor_down", "down", show=False),
         Binding("k", "cursor_up", "up", show=False),
         Binding("q", "quit", "quit"),

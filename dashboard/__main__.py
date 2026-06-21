@@ -50,10 +50,11 @@ def main(argv=None) -> int:
     if args.render or not sys.stdout.isatty():
         # Default to static when piped/captured (e.g. inside a CLI agent).
         return run_static(args)
-    # Interactive Textual TUI is a stretch layer; fall back to static if absent.
+    # Interactive Textual TUI is a stretch layer; fall back to static if absent
+    # or broken (e.g. wrong Textual version that raises ImportError/AttributeError).
     try:
         from .interactive import run_interactive  # noqa: F401
-    except ModuleNotFoundError:
+    except ImportError:
         return run_static(args)
     return run_interactive(args)  # pragma: no cover
 
