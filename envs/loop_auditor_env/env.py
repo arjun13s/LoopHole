@@ -92,6 +92,8 @@ def select_traces() -> "list[dict]":
     "fixtures" (default) -> the 3 local sanity traces; "train"/"heldout" ->
     taskset/<split>.jsonl; "all" -> train+heldout; "rich_train"/"rich_heldout"/
     "rich_all" -> Person 1's rich generated taskset (normalized via rich_loader);
+    "demo_all"/"fixtures_live_all" -> fixtures + live train + live heldout for
+    a single deployed env that can serve both legacy demo and live tasksets;
     otherwise treat config.DATASET as a path to a .jsonl file or a dir of *.json.
     """
     ds = config.DATASET
@@ -111,6 +113,8 @@ def select_traces() -> "list[dict]":
         return _load_live(ds.split("_", 1)[1])
     if ds == "live_all":
         return _load_live("train") + _load_live("heldout")
+    if ds in ("demo_all", "fixtures_live_all"):
+        return load_fixture_traces() + _load_live("train") + _load_live("heldout")
     p = Path(ds)
     return load_fixture_traces(p) if p.is_dir() else load_jsonl_traces(p)
 

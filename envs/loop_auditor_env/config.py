@@ -49,7 +49,9 @@ def _resolve_taskset_dir() -> Path:
 TASKSET_DIR = _resolve_taskset_dir()
 # Which traces the env serves as tasks. Default "fixtures" (the 3 local sanity
 # traces, keeps tests stable); "train"/"heldout"/"all" load Person 1's dataset;
-# any other value is treated as a path to a .jsonl file or a dir of *.json.
+# "demo_all" serves fixtures + live train/heldout for one HUD deployment that
+# supports both the legacy demo taskset and the live training tasksets; any
+# other value is treated as a path to a .jsonl file or a dir of *.json.
 DATASET = os.environ.get("LOOP_AUDITOR_DATASET", "fixtures")
 
 

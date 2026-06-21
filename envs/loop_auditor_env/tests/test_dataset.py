@@ -28,3 +28,11 @@ def test_select_traces_heldout_has_clean_and_planted(monkeypatch):
 def test_select_traces_default_is_fixtures(monkeypatch):
     monkeypatch.setattr(config, "DATASET", "fixtures")
     assert len(E.select_traces()) == 3
+
+
+def test_select_traces_demo_all_includes_fixtures_and_live(monkeypatch):
+    monkeypatch.setattr(config, "DATASET", "demo_all")
+    traces = E.select_traces()
+    run_ids = {trace["run_id"] for trace in traces}
+    assert {"buggy-resource-misuse-001", "clean-trace-001"}.issubset(run_ids)
+    assert any(run_id.startswith("date_range_boundary__live_") for run_id in run_ids)
