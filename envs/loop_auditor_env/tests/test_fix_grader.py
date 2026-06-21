@@ -158,7 +158,55 @@ def test_grade_structured_fix_partial_match(tmp_path):
     assert fix_grader.grade_fix(verdict, gt, trace, tmp_path) == 0.5
 
 
-def test_grade_structured_fix_zero_match_takes_precedence_over_legacy_concepts(tmp_path):
+def test_grade_structured_resource_misuse_accepts_natural_language_concepts(tmp_path):
+    trace, gt = _buggy_trace("resource_misuse")
+    gt["fix"] = {
+        "action": "replace",
+        "step_id": "a4",
+        "target": "test_outputs/a004.txt",
+        "tool_name": "read_file",
+    }
+    verdict = {
+        "proposed_fix": "Avoid reading large context files; focus on relevant files and error diagnostics.",
+        "explanation": "The agent wasted resources on irrelevant data.",
+    }
+
+    assert fix_grader.grade_fix(verdict, gt, trace, tmp_path) == 1.0
+
+
+def test_grade_structured_routing_accepts_rerun_tests_after_changes(tmp_path):
+    trace, gt = _buggy_trace("routing")
+    gt["fix"] = {
+        "action": "insert",
+        "step_id": "a7",
+        "target": "a7",
+        "tool_name": "run_tests",
+    }
+    verdict = {
+        "proposed_fix": "After every code modification, rerun all tests before submission.",
+        "explanation": "The agent skipped required verification.",
+    }
+
+    assert fix_grader.grade_fix(verdict, gt, trace, tmp_path) == 1.0
+
+
+def test_grade_structured_wrong_file_accepts_main_implementation_language(tmp_path):
+    trace, gt = _buggy_trace("wrong_file_edit")
+    gt["fix"] = {
+        "action": "replace",
+        "step_id": "a4",
+        "target": "repo/src/slugify.py",
+        "tool_name": "write_file",
+    }
+    verdict = {
+        "proposed_fix": "Route edits to the correct implementation file instead of an auxiliary file.",
+        "explanation": "The worker edited the wrong helper.",
+    }
+
+    assert fix_grader.grade_fix(verdict, gt, trace, tmp_path) == 1.0
+
+
+def test_grade_structured_fix_uses_failure_type_concepts_when_structured_target_is_brittle(tmp_path):
     trace, gt = _buggy_trace("routing")
     gt["fix"] = {
         "action": "replace",
@@ -171,7 +219,7 @@ def test_grade_structured_fix_zero_match_takes_precedence_over_legacy_concepts(t
         "explanation": "",
     }
 
-    assert fix_grader.grade_fix(verdict, gt, trace, tmp_path) == 0.0
+    assert fix_grader.grade_fix(verdict, gt, trace, tmp_path) == 1.0
 
 
 def test_grade_resource_misuse_hits_both_groups_with_clean_target_path(tmp_path):

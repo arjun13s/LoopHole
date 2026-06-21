@@ -18,12 +18,10 @@ GROUND_TRUTH = {
 }
 
 
-def test_grade_fix_not_consulted_when_localization_wrong(monkeypatch):
-    # The explanation term is gated to localization-correct; grade_fix must not run.
-    def fail_if_called(*args, **kwargs):
-        raise AssertionError("grade_fix should not run for wrong localization")
-
-    monkeypatch.setattr(eval_harness.fix_grader, "grade_fix", fail_if_called)
+def test_grade_fix_counts_when_failure_type_correct_but_localization_wrong(monkeypatch):
+    # Lenient rubric: a useful process diagnosis can earn fix-quality credit
+    # even when the exact planted step id is off.
+    monkeypatch.setattr(eval_harness.fix_grader, "grade_fix", lambda *a, **k: 0.8)
     verdict = {
         "fault_present": True,
         "predicted_step_id": "a3",
@@ -43,8 +41,37 @@ def test_grade_fix_not_consulted_when_localization_wrong(monkeypatch):
     )
 
     assert record["localization_correct"] is False
+    assert record["explanation_score"] == 0.8
+    assert record["reward"] == pytest.approx(0.7)
+
+
+def test_grade_fix_still_gated_when_issue_not_identified(monkeypatch):
+    def fail_if_called(*args, **kwargs):
+        raise AssertionError("grade_fix should not run when location and type are both wrong")
+
+    monkeypatch.setattr(eval_harness.fix_grader, "grade_fix", fail_if_called)
+    verdict = {
+        "fault_present": True,
+        "predicted_step_id": "a3",
+        "failure_type": "routing",
+        "explanation": "Wrong issue.",
+        "proposed_fix": "Fix the wrong thing.",
+    }
+
+    record = eval_harness.build_eval_record(
+        run_id="r1",
+        model_tag="base",
+        raw_verdict=verdict,
+        trace_view={"run_id": "r1", "iterations": []},
+        ground_truth=GROUND_TRUTH,
+        trace_tokens=10,
+        auditor_tokens=5,
+    )
+
+    assert record["localization_correct"] is False
+    assert record["failure_type_correct"] is False
     assert record["explanation_score"] == 0.0
-    assert record["reward"] == 0.3  # failure_type only
+    assert record["reward"] == 0.0
 
 
 def test_explanation_term_from_fix_grader_when_localization_correct(monkeypatch):

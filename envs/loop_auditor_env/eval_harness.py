@@ -88,9 +88,12 @@ def build_eval_record(
         )
         failure_type_correct = v["failure_type"] == ground_truth["failure_type"]
         # Deterministic explanation term (same path as env.score_verdict): fix-by-
-        # comparison, zeroed if the verdict cites a fabricated step id. The LLM judge
-        # is NOT in the reward path (eval-time diagnostic only).
-        if localization_correct:
+        # comparison, zeroed if the verdict cites a fabricated step id. Leniently
+        # grant this term when the auditor identified the process issue category,
+        # even if it points at a nearby/wrong step. The LLM judge is NOT in the
+        # reward path (eval-time diagnostic only).
+        issue_identified = localization_correct or failure_type_correct
+        if issue_identified:
             explanation_score = fix_grader.grade_fix(
                 v, ground_truth, trace_view, config.BASE_TRACES_DIR
             )

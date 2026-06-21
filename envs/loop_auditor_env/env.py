@@ -185,11 +185,15 @@ def score_verdict(raw_verdict, trace_view: dict, ground_truth) -> float:
     except (ValueError, TypeError):
         return 0.0
     explanation_score = 0.0
-    if (
+    issue_identified = (
         ground_truth is not None
         and v.get("fault_present") is True
-        and v["predicted_step_id"] == ground_truth["step_id"]
-    ):
+        and (
+            v["predicted_step_id"] == ground_truth["step_id"]
+            or v["failure_type"] == ground_truth["failure_type"]
+        )
+    )
+    if issue_identified:
         explanation_score = fix_grader.grade_fix(v, ground_truth, trace_view, config.BASE_TRACES_DIR)
         if not citation_gate.check(v, trace_view)["passed"]:
             explanation_score = 0.0  # fabricated step reference -> zero the explanation term

@@ -23,10 +23,10 @@ def test_reward_wrong_type_keeps_localization_and_explanation():
     assert compute_reward(verdict, GROUND_TRUTH, explanation_score=0.8) == pytest.approx(1.4)
 
 
-def test_reward_wrong_location_gates_explanation_but_not_failure_type():
+def test_reward_wrong_location_counts_explanation_when_failure_type_matches():
     verdict = {"fault_present": True, "predicted_step_id": "iter0.step0.ok", "failure_type": "routing"}
 
-    assert compute_reward(verdict, GROUND_TRUTH, explanation_score=1.0) == pytest.approx(0.3)
+    assert compute_reward(verdict, GROUND_TRUTH, explanation_score=1.0) == pytest.approx(0.8)
 
 
 def test_reward_wrong_location_and_wrong_type():

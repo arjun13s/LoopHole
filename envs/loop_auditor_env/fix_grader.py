@@ -172,10 +172,11 @@ def grade_fix(
     if not proposed_fix:
         return 0.0
     text = f"{proposed_fix or ''} {verdict.get('explanation') or ''}".lower()
+    failure_type = ground_truth.get("failure_type")
 
     structured_fix = ground_truth.get("fix")
     if isinstance(structured_fix, dict):
-        return _grade_structured_fix(text, structured_fix)
+        return _grade_structured_fix(text, structured_fix, failure_type)
 
     base_trace = load_base_trace(trace.get("run_id", ""), base_traces_dir)
     correction = expected_correction(trace, ground_truth, base_trace)
@@ -194,24 +195,146 @@ def _base_trace_candidate_ids(base_id: str) -> list[str]:
     return ids
 
 
-def _grade_structured_fix(text: str, structured_fix: dict) -> float:
-    groups: list[list[str]] = []
+def _grade_structured_fix(text: str, structured_fix: dict, failure_type: str | None = None) -> float:
+    structured_groups: list[list[str]] = []
     target = structured_fix.get("target")
     if isinstance(target, str) and target:
-        groups.append([target, Path(target).name])
+        structured_groups.append([target, Path(target).name])
 
     tool_or_action = [
         value
         for value in (structured_fix.get("tool_name"), structured_fix.get("action"))
         if isinstance(value, str) and value
     ]
+    tool_or_action.extend(_structured_action_aliases(failure_type, structured_fix))
     if tool_or_action:
-        groups.append(tool_or_action)
+        structured_groups.append(tool_or_action)
 
-    if not groups:
+    generic_groups = _generic_fix_groups(failure_type)
+    if not structured_groups and not generic_groups:
         return 0.0
-    matched = sum(1 for group in groups if _group_matches(group, text))
-    return matched / len(groups)
+    scores = []
+    for groups in (structured_groups, generic_groups):
+        if groups:
+            matched = sum(1 for group in groups if _group_matches(group, text))
+            scores.append(matched / len(groups))
+    return max(scores) if scores else 0.0
+
+
+def _structured_action_aliases(failure_type: str | None, structured_fix: dict) -> list[str]:
+    """Natural-language aliases for structured action/tool labels.
+
+    Rich task ground truth often says the corrective action is ``insert run_tests``
+    or ``replace read_file``. Auditor fixes usually phrase those as "rerun tests"
+    or "avoid large context files", so exact tool/action tokens are too brittle.
+    """
+    if failure_type == "routing":
+        return [
+            "rerun tests",
+            "re-run tests",
+            "rerun all tests",
+            "run all tests",
+            "run the tests",
+            "run tests",
+            "test re-run",
+            "re-running tests",
+            "validation",
+            "verify",
+        ]
+    if failure_type == "resource_misuse":
+        return [
+            "avoid reading",
+            "avoid large",
+            "large context",
+            "large file",
+            "irrelevant data",
+            "relevant files",
+            "focused files",
+            "specific files",
+            "error diagnostics",
+        ]
+    if failure_type == "wrong_file_edit":
+        return [
+            "edit",
+            "edits",
+            "route edits",
+            "correct implementation",
+            "main implementation",
+            "instead of auxiliary",
+        ]
+    return []
+
+
+def _generic_fix_groups(failure_type: str | None) -> list[list[str]]:
+    """Failure-type concepts that deserve credit even without exact artifact ids."""
+    if failure_type == "resource_misuse":
+        return [
+            [
+                "relevant file",
+                "relevant files",
+                "specific file",
+                "specific files",
+                "focused files",
+                "focus on relevant",
+                "targeted file",
+                "error diagnostics",
+            ],
+            [
+                "large context",
+                "large context files",
+                "large file",
+                "irrelevant data",
+                "irrelevant files",
+                "unnecessary context",
+                "wasting resources",
+            ],
+        ]
+    if failure_type == "routing":
+        return [
+            [
+                "rerun tests",
+                "re-run tests",
+                "rerun all tests",
+                "run all tests",
+                "run the tests",
+                "run tests",
+                "test re-run",
+                "re-running tests",
+                "validation",
+                "verify",
+            ],
+            [
+                "after code modification",
+                "after every code modification",
+                "after code modifications",
+                "after modifications",
+                "after every change",
+                "after changes",
+                "before submission",
+                "before submit",
+                "before submitting",
+                "skipping required verification",
+            ],
+        ]
+    if failure_type == "wrong_file_edit":
+        return [
+            [
+                "wrong helper",
+                "wrong file",
+                "wrong path",
+                "auxiliary file",
+                "instead of the main",
+                "instead of auxiliary",
+            ],
+            [
+                "correct implementation",
+                "main implementation",
+                "correct file",
+                "route edits",
+                "target the correct",
+            ],
+        ]
+    return []
 
 
 def _group_matches(group: list[str], text: str) -> bool:

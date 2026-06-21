@@ -28,7 +28,7 @@ def compute_reward(
         ftype = verdict["failure_type"]      == ground_truth["failure_type"]
         reward = config.W_LOCALIZATION * loc
                + config.W_FAILURE_TYPE * ftype
-               + (config.W_EXPLANATION * explanation_score if loc else 0.0)
+               + (config.W_EXPLANATION * explanation_score if loc or ftype else 0.0)
 
     Clean trace (``ground_truth is None``)::
 
@@ -49,7 +49,7 @@ def compute_reward(
 
     reward = config.W_LOCALIZATION * float(localization_correct)
     reward += config.W_FAILURE_TYPE * float(failure_type_correct)
-    if localization_correct:
+    if localization_correct or failure_type_correct:
         reward += config.W_EXPLANATION * float(explanation_score)
     return reward
 

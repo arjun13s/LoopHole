@@ -19,19 +19,19 @@
     "explanation_score": {
       "weight": 0.5,
       "type": "continuous_0_1",
-      "rule": "rubric judge score in [0,1]",
-      "counts_only_if": "localization_correct"
+      "rule": "deterministic fix-by-comparison score in [0,1]",
+      "counts_only_if": "localization_correct || failure_type_correct"
     }
   },
-  "formula": "reward = 1.0*localization_correct + 0.3*failure_type_correct + (0.5*explanation_score if localization_correct else 0.0)",
+  "formula": "reward = 1.0*localization_correct + 0.3*failure_type_correct + (0.5*explanation_score if localization_correct || failure_type_correct else 0.0)",
   "clean_trace": {
     "condition": "planted_failure == null",
     "rule": "reward = 1.0 if verdict.fault_present == false else 0.0"
   },
   "explanation_rubric": {
-    "judge": "separate strong model (Anthropic/Claude); NEVER the trained eval agent (avoids circularity)",
-    "dimensions": ["correctness", "specificity", "causal_soundness"],
-    "output": "scalar 0..1, thresholded; used only when localization_correct is true"
+    "judge": "deterministic fix-by-comparison; no LLM judge in reward path",
+    "dimensions": ["process_issue_identified", "corrective_action_coverage", "citation_grounding"],
+    "output": "scalar 0..1, thresholded; used when localization_correct or failure_type_correct is true"
   },
   "stretch_hook_design_y": {
     "note": "DO NOT IMPLEMENT YET. When the gate head exists, add: reward -= lambda * tokens_used."

@@ -88,7 +88,7 @@ def test_buggy_false_negative_bucket():
 
 def test_bad_localization_bucket():
     record = self_improve.analyze_eval_record(
-        _eval(localization_correct=False, failure_type_correct=True, reward=0.3),
+        _eval(localization_correct=False, failure_type_correct=True, explanation_score=1.0, reward=0.8),
         verdict_row=_verdict(predicted_step_id="a1"),
         trace=_trace(_bug()),
     )
@@ -99,7 +99,7 @@ def test_bad_localization_bucket():
 
 
 def test_bad_failure_type_bucket_even_when_reward_above_failure_threshold():
-    row = _eval(localization_correct=True, failure_type_correct=False, reward=1.0)
+    row = _eval(localization_correct=True, failure_type_correct=False, explanation_score=1.0, reward=1.0)
     improvements = self_improve.analyze_eval_records(
         [row],
         verdicts_by_run_id={"r1": _verdict(failure_type="routing")},

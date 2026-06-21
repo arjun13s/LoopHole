@@ -292,13 +292,15 @@ def _classify_buggy(
             evidence.append(f"failure_type_correct=false; expected {gt_type!r}")
 
     if (
-        eval_record.get("localization_correct") is True
-        and eval_record.get("failure_type_correct") is True
+        (
+            eval_record.get("localization_correct") is True
+            or eval_record.get("failure_type_correct") is True
+        )
         and explanation_score < weak_fix_threshold
     ):
         _add(buckets, "weak_fix")
         evidence.append(
-            f"localization/type correct but explanation_score={explanation_score:.3f} "
+            f"issue identified but explanation_score={explanation_score:.3f} "
             f"< {weak_fix_threshold:.3f}"
         )
 
@@ -317,10 +319,10 @@ def _classify_from_eval_only(
     if failure_type_correct is False:
         _add(buckets, "bad_failure_type")
         evidence.append("failure_type_correct=false without trace/verdict sidecar")
-    if localization_correct is True and failure_type_correct is True and explanation_score < weak_fix_threshold:
+    if (localization_correct is True or failure_type_correct is True) and explanation_score < weak_fix_threshold:
         _add(buckets, "weak_fix")
         evidence.append(
-            f"localization/type correct but explanation_score={explanation_score:.3f} "
+            f"issue identified but explanation_score={explanation_score:.3f} "
             f"< {weak_fix_threshold:.3f}"
         )
 
