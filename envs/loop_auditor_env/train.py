@@ -53,14 +53,24 @@ def spreads_by_group(labeled_rewards) -> dict:
     return {key: (max(vals) - min(vals)) for key, vals in groups.items() if vals}
 
 
-async def _run(runtime=None) -> None:
+async def _run(runtime=None, num_steps: "int | None" = None) -> None:
+    """Run ``num_steps`` GRPO steps (default LOOP_AUDITOR_TRAIN_STEPS, 1 = H4 gate).
+
+    Each step: sample a grouped rollout over the audit taskset (deterministic §1.4
+    reward), compute per-group spread, and — if any group is non-degenerate —
+    apply one trainer.step. The promoted checkpoint means the next step samples
+    the updated policy, so mean reward should trend up across steps.
+    """
     from hud import Taskset, TrainingClient
 
-    # Scope the H4 gate to AUDIT tasks: those carry the deterministic §1.4 reward
-    # we train the auditor on (gate tasks have a separate reward scale).
+    num_steps = num_steps if num_steps is not None else int(
+        os.environ.get("LOOP_AUDITOR_TRAIN_STEPS", "1")
+    )
+
+    # Scope to AUDIT tasks: those carry the deterministic §1.4 reward we train the
+    # auditor on (gate tasks have a separate reward scale).
     audit_ids = [sid for sid, sc in env_mod._SCENARIOS.items() if sc.mode == "audit"]
-    # Cheap-smoke knob: cap the number of audit tasks (0 = all) so the first
-    # trainer.step can be exercised on 1-2 tasks before a full run.
+    # Cheap-smoke knob: cap the number of audit tasks (0 = all).
     max_tasks = int(os.environ.get("LOOP_AUDITOR_H4_MAX_TASKS", "0"))
     if max_tasks > 0:
         audit_ids = audit_ids[:max_tasks]
@@ -70,32 +80,43 @@ async def _run(runtime=None) -> None:
     auditor = agent_mod.build_auditor_agent(config.MODEL, trainable=True)
     trainer = TrainingClient(config.MODEL)
 
-    # Grouped rollouts; each scored by the @env.template deterministic reward.
-    job = await taskset.run(
-        auditor, group=config.GROUP_SIZE, runtime=runtime, max_concurrent=config.GROUP_SIZE
-    )
-    labeled = [(getattr(r, "slug", None), getattr(r, "reward", None)) for r in job.runs]
-    spreads = spreads_by_group(labeled)
-    for key, s in sorted(spreads.items(), key=lambda kv: str(kv[0])):
-        print(f"[H4] group {key}: spread={s:.3f}")
-    nonzero = [k for k, s in spreads.items() if s > 0.0]
-    print(f"[H4] rollouts={len(job.runs)} groups={len(spreads)} non-degenerate={len(nonzero)}")
-    if not nonzero:
-        raise SystemExit(
-            "DEGENERATE reward: every rollout in every group scored the same -> GRPO "
-            "advantage is 0. Increase task difficulty/diversity until the base model is "
-            "only partially right within a group."
+    history: list[dict] = []
+    for step in range(1, num_steps + 1):
+        job = await taskset.run(
+            auditor, group=config.GROUP_SIZE, runtime=runtime, max_concurrent=config.GROUP_SIZE
         )
+        labeled = [(getattr(r, "slug", None), getattr(r, "reward", None)) for r in job.runs]
+        rewards = [r for _, r in labeled if r is not None]
+        mean = sum(rewards) / len(rewards) if rewards else 0.0
+        spreads = spreads_by_group(labeled)
+        nonzero = [k for k, s in spreads.items() if s > 0.0]
+        print(
+            f"[train] step {step}/{num_steps}: mean_reward={mean:.3f} "
+            f"rollouts={len(job.runs)} groups={len(spreads)} non-degenerate={len(nonzero)}"
+        )
+        if not nonzero:
+            # No within-group spread -> zero GRPO advantage; the optimizer step is a
+            # no-op. On step 1 that's the H4 gate failing; later it means converged/stuck.
+            if step == 1:
+                raise SystemExit(
+                    "[train] DEGENERATE reward on step 1 (H4 gate): no group has spread -> "
+                    "zero GRPO advantage. Increase task difficulty/diversity."
+                )
+            print(f"[train] step {step}: no non-degenerate group; skipping optimizer step")
+            history.append({"step": step, "mean_reward": mean, "stepped": False})
+            continue
+        result = await trainer.step(
+            job.runs, learning_rate=config.LR, group_size=config.GROUP_SIZE
+        )
+        ckpt = getattr(result, "checkpoint_id", None)
+        print(f"[train] step {step}: optimizer OK checkpoint={ckpt}")
+        history.append({"step": step, "mean_reward": mean, "stepped": True, "checkpoint": ckpt})
 
-    # One GRPO-style optimizer step on the rollouts.
-    result = await trainer.step(
-        job.runs, learning_rate=config.LR, group_size=config.GROUP_SIZE
-    )
-    print(f"[H4] trainer.step OK -> {result}")
-    try:  # checkpoint advance is the other half of the H4 gate
-        print(f"[H4] checkpoints -> {await trainer.checkpoints()}")
+    print("[train] reward trajectory:", [(h["step"], round(h["mean_reward"], 3)) for h in history])
+    try:
+        print(f"[train] checkpoints -> {await trainer.checkpoints()}")
     except Exception as exc:  # noqa: BLE001 - informational only
-        print(f"[H4] checkpoints() unavailable here ({type(exc).__name__}: {exc})", file=sys.stderr)
+        print(f"[train] checkpoints() unavailable here ({type(exc).__name__}: {exc})", file=sys.stderr)
 
 
 def main() -> None:
