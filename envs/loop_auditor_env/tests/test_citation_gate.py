@@ -53,6 +53,23 @@ def test_check_fails_with_fabricated_step_id():
     }
 
 
+def test_check_accepts_zero_pad_shorthand_for_padded_ids():
+    # Real ids are zero-padded; the auditor cites the shorthand. Not fabricated.
+    trace = {"iterations": [{"index": 0, "steps": [
+        {"step_id": "a005"}, {"step_id": "a010"},
+    ]}]}
+    verdict = {"explanation": "The fault is at a5.", "proposed_fix": "Skip a5; see a10."}
+    result = citation_gate.check(verdict, trace)
+    assert result["passed"] is True
+    assert result["fabricated"] == []
+
+
+def test_check_still_flags_genuinely_absent_numeric_id():
+    trace = {"iterations": [{"index": 0, "steps": [{"step_id": "a005"}]}]}
+    verdict = {"explanation": "Fault at a999.", "proposed_fix": "Fix a999."}
+    assert citation_gate.check(verdict, trace)["fabricated"] == ["a999"]
+
+
 def test_check_passes_when_no_step_refs():
     verdict = {
         "explanation": "The tests were skipped.",

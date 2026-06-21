@@ -6,6 +6,19 @@ import re
 
 
 STEP_ID_RE = re.compile(r"(?<![A-Za-z0-9_])(a(?:\d+|_[A-Za-z0-9]+_\d+))(?![A-Za-z0-9_])")
+_PLAIN_NUMERIC_RE = re.compile(r"^a(\d+)$")
+
+
+def _canonical_ref(ref: str) -> str:
+    """Collapse zero-padding on a plain ``aNNN`` id so ``a5`` == ``a05`` == ``a005``.
+
+    Real trace ids are zero-padded (``a001``..``a010``); the auditor often cites
+    the shorthand ``a5``. Matching on the numeric value (not the literal text)
+    stops that loose-but-correct reference from being scored as fabricated. Ids
+    with non-numeric suffixes (``a_safety_0``) are left untouched.
+    """
+    m = _PLAIN_NUMERIC_RE.match(ref)
+    return f"a{int(m.group(1))}" if m else ref
 
 
 def trace_step_ids(trace: dict) -> set[str]:
@@ -35,8 +48,8 @@ def check(verdict: dict, trace: dict) -> dict:
     """Return whether verdict text cites only real trace step_ids."""
     text = f"{verdict.get('explanation') or ''} {verdict.get('proposed_fix') or ''}"
     checked = extract_step_refs(text)
-    real = trace_step_ids(trace)
-    fabricated = [ref for ref in checked if ref not in real]
+    real_canonical = {_canonical_ref(ref) for ref in trace_step_ids(trace)}
+    fabricated = [ref for ref in checked if _canonical_ref(ref) not in real_canonical]
     return {
         "passed": not fabricated,
         "checked": checked,
