@@ -11,9 +11,25 @@ from pathlib import Path
 
 # --- paths -------------------------------------------------------------------
 PKG_DIR = Path(__file__).resolve().parent
-REPO_ROOT = PKG_DIR.parents[1]
-SCHEMAS_DIR = REPO_ROOT / "schemas"
+# Repo root in the monorepo; falls back to PKG_DIR when the env is flattened into
+# a container (e.g. /app on `hud deploy`, where PKG_DIR has no grandparent).
+REPO_ROOT = PKG_DIR.parents[1] if len(PKG_DIR.parents) >= 2 else PKG_DIR
 FIXTURES_DIR = PKG_DIR / "fixtures"
+
+
+def _resolve_schemas_dir() -> Path:
+    """Locate schemas/: env override, then the canonical repo-root copy (local
+    dev), then a vendored copy beside the env (deploy/container build context)."""
+    override = os.environ.get("LOOP_AUDITOR_SCHEMAS_DIR")
+    if override:
+        return Path(override)
+    for candidate in (REPO_ROOT / "schemas", PKG_DIR / "schemas"):
+        if (candidate / "verdict.json").exists():
+            return candidate
+    return PKG_DIR / "schemas"
+
+
+SCHEMAS_DIR = _resolve_schemas_dir()
 # Person 3's dashboard reads this file. Agree the path with Person 3 at H0.
 EVAL_OUTPUT = PKG_DIR / "eval_results.jsonl"
 

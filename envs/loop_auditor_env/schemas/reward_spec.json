@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://loophole.dev/schemas/reward_spec.json",
+  "title": "RewardSpec",
+  "description": "Machine-readable spec of the GRPO scalar reward. PLAN.md §1.4. FROZEN CONTRACT. reward.py must implement this exactly.",
+  "type": "object",
+  "version": 1,
+  "components": {
+    "localization_correct": {
+      "weight": 1.0,
+      "type": "binary",
+      "rule": "verdict.predicted_step_id == planted_failure.step_id"
+    },
+    "failure_type_correct": {
+      "weight": 0.3,
+      "type": "binary",
+      "rule": "verdict.failure_type == planted_failure.failure_type"
+    },
+    "explanation_score": {
+      "weight": 0.5,
+      "type": "continuous_0_1",
+      "rule": "rubric judge score in [0,1]",
+      "counts_only_if": "localization_correct"
+    }
+  },
+  "formula": "reward = 1.0*localization_correct + 0.3*failure_type_correct + (0.5*explanation_score if localization_correct else 0.0)",
+  "clean_trace": {
+    "condition": "planted_failure == null",
+    "no_fault_sentinel": "NONE",
+    "rule": "reward = 1.0 if verdict.predicted_step_id == 'NONE' else 0.0"
+  },
+  "explanation_rubric": {
+    "judge": "separate strong model (Anthropic/Claude); NEVER the trained eval agent (avoids circularity)",
+    "dimensions": ["correctness", "specificity", "causal_soundness"],
+    "output": "scalar 0..1, thresholded; used only when localization_correct is true"
+  },
+  "stretch_hook_design_y": {
+    "note": "DO NOT IMPLEMENT YET. When the gate head exists, add: reward -= lambda * tokens_used."
+  }
+}

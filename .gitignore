@@ -23,3 +23,6 @@ __pycache__/
 uv.lock
 # generated eval output (dashboard reads it; not source)
 envs/loop_auditor_env/eval_results.jsonl
+# hud CLI local state (links/eval config)
+.hud/
+.hud_eval.toml

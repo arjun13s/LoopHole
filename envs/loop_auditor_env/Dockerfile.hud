@@ -1,0 +1,21 @@
+# Built remotely by `hud deploy` (build context = this env directory). No local Docker needed.
+FROM python:3.11-slim
+
+# uv for a fast, reproducible install.
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+
+WORKDIR /app
+
+# Dependency layer first (cached across code edits). uv.lock is optional.
+COPY pyproject.toml uv.lock* ./
+RUN uv sync --frozen --no-dev || uv sync --no-dev
+
+# Env modules + data. `schemas/` is a vendored deploy snapshot of the repo-root
+# /schemas contract (config.SCHEMAS_DIR finds it here when there's no repo root).
+COPY *.py ./
+COPY fixtures ./fixtures
+COPY schemas ./schemas
+
+# Serve the v6 control channel; @env.initialize brings up the in-process tools MCP capability.
+EXPOSE 8765
+CMD ["/app/.venv/bin/hud", "serve", "env:env", "--host", "0.0.0.0", "--port", "8765"]

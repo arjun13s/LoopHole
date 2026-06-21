@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://loophole.dev/schemas/verdict.json",
+  "title": "Verdict",
+  "description": "What the auditor agent emits. PLAN.md §1.2. FROZEN CONTRACT.",
+  "type": "object",
+  "required": ["predicted_step_id", "failure_type", "explanation", "proposed_fix"],
+  "additionalProperties": false,
+  "properties": {
+    "predicted_step_id": {
+      "type": "string",
+      "description": "step_id (copied VERBATIM from the trace) of the faulty span, or the sentinel 'NONE' if the auditor judges the trace clean."
+    },
+    "failure_type": {
+      "type": "string",
+      "enum": ["resource_misuse", "tool_misuse", "routing", "safety", "none"],
+      "description": "Predicted failure category; 'none' for a clean trace."
+    },
+    "explanation": { "type": "string" },
+    "proposed_fix": { "type": "string" }
+  }
+}
