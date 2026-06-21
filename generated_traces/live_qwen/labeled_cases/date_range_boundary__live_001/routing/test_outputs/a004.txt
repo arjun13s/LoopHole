@@ -1,0 +1,29 @@
+F...                                                                     [100%]
+=================================== FAILURES ===================================
+_____________________________ test_exclusive_range _____________________________
+
+    def test_exclusive_range():
+>       assert days_between(date(2026, 1, 1), date(2026, 1, 4)) == 3
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_date_ranges.py:9: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+start = datetime.date(2026, 1, 1), end = datetime.date(2026, 1, 4)
+inclusive = False
+
+    def days_between(start: date, end: date, inclusive: bool = False) -> int:
+        """Return the number of whole days between start and end.
+    
+        If inclusive=True, both boundary dates count. Reversed ranges are invalid.
+        """
+        if end < start:
+            raise ValueError("end before start")
+>       days = (end - start).days + 1 if inclusive else days
+                                                        ^^^^
+E       UnboundLocalError: cannot access local variable 'days' where it is not associated with a value
+
+src/date_ranges.py:12: UnboundLocalError
+=========================== short test summary info ============================
+FAILED tests/test_date_ranges.py::test_exclusive_range - UnboundLocalError: c...
+1 failed, 3 passed in 0.04s
