@@ -24,7 +24,7 @@ from pathlib import Path
 
 try:  # package (pytest) | flat (hud `env:env`)
     from . import agent as agent_mod
-    from . import citation_gate, config, fix_grader, judge
+    from . import citation_gate, config, diagnostics, fix_grader, judge
     from . import env as env_mod
     from . import reward as reward_mod
     from . import verdict as verdict_mod
@@ -32,6 +32,7 @@ except ImportError:
     import agent as agent_mod
     import citation_gate
     import config
+    import diagnostics
     import fix_grader
     import judge
     import env as env_mod
@@ -159,21 +160,46 @@ def _auditor_tokens(trace) -> int:
     return sum(trace.collect(per_step))
 
 
+def _tool_call_counts(trace) -> "dict | None":
+    """Tally the auditor's MCP tool calls by name over its agent turns.
+
+    Feeds the diagnostics ``artifact_tool_calls`` / ``inspection_tool_calls``
+    signals (the artifact_miss bucket). Returns ``{}`` on a successfully-walked
+    trace with no calls, and ``None`` only if the trace can't be inspected (an
+    unknown HUD shape) — the analyzer treats ``None`` as "unknown", never "0".
+    """
+    try:
+        from hud.agents.types import AgentStep
+
+        counts: dict = {}
+        for step in getattr(trace, "steps", None) or []:
+            if not isinstance(step, AgentStep):
+                continue
+            for call in getattr(step, "tool_calls", None) or []:
+                name = getattr(call, "name", None)
+                if isinstance(name, str) and name:
+                    counts[name] = counts.get(name, 0) + 1
+        return counts
+    except Exception:  # pragma: no cover - defensive: unknown trace shape -> unknown
+        return None
+
+
 async def _run_auditor_once(auditor, task):
-    """Run the auditor over one audit Task via HUD; return (raw_verdict, auditor_tokens).
+    """Run the auditor over one audit Task via HUD; return (raw_verdict, auditor_tokens, tool_calls).
 
     Drives the task through ``Task.run(agent)`` (hud 0.6.x): the env serves the
     trace summary + inspection tools, the agent investigates and emits its verdict
-    as the final assistant message. We read that message back off the run's Trace
-    and sum the agent turns' token usage. A run that never produced text (failed
-    or empty) yields ("", 0), which build_eval_record scores as 0.
+    as the final assistant message. We read that message back off the run's Trace,
+    sum the agent turns' token usage, and tally tool calls by name (for the
+    artifact_miss diagnostic). A run that never produced text (failed or empty)
+    yields ("", 0, None), which build_eval_record scores as 0.
     """
     job = await task.run(auditor)
     runs = getattr(job, "runs", None) or []
     if not runs:
-        return "", 0
+        return "", 0, None
     trace = runs[0].trace
-    return _final_verdict_text(trace), _auditor_tokens(trace)
+    return _final_verdict_text(trace), _auditor_tokens(trace), _tool_call_counts(trace)
 
 
 async def run_eval(split: "str | None" = None, model_tag: str = "base") -> dict:
@@ -192,24 +218,32 @@ async def run_eval(split: "str | None" = None, model_tag: str = "base") -> dict:
     auditor = agent_mod.build_auditor_agent()
     audit_scenarios = [s for s in env_mod._SCENARIOS.values() if s.mode == "audit"]
     records = []
+    sidecars = []
     for sc in audit_scenarios:
         task = env_mod.audit_trace(scenario_id=sc.id)
         task.slug = sc.id
-        raw_verdict, auditor_tokens = await _run_auditor_once(auditor, task)
+        # Back-compat: _run_auditor_once now returns (verdict, tokens, tool_calls);
+        # tolerate a 2-tuple (older/monkeypatched rollouts) -> tool_calls unknown.
+        raw_verdict, auditor_tokens, *rest = await _run_auditor_once(auditor, task)
+        tool_calls = rest[0] if rest else None
         trace = env_mod._TRACES[sc.trace_id]
         trace_view, gt = env_mod.strip_ground_truth(trace)
-        records.append(
-            build_eval_record(
-                trace["run_id"],
-                model_tag,
-                raw_verdict,
-                trace_view,
-                gt,
-                count_trace_tokens(trace),
-                auditor_tokens,
-            )
+        record = build_eval_record(
+            trace["run_id"],
+            model_tag,
+            raw_verdict,
+            trace_view,
+            gt,
+            count_trace_tokens(trace),
+            auditor_tokens,
+        )
+        records.append(record)
+        # Additive, optional diagnostic sidecar (never part of the GRPO reward).
+        sidecars.append(
+            diagnostics.build_sidecar_record(record, raw_verdict, trace_view, gt, tool_calls=tool_calls)
         )
     write_jsonl(records)
+    write_jsonl(sidecars, Path(config.EVAL_OUTPUT).with_name("verdicts.jsonl"))
     return aggregate(records)
 
 

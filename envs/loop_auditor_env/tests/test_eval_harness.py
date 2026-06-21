@@ -186,3 +186,62 @@ async def test_run_eval_rejects_split_mismatch(monkeypatch):
     monkeypatch.setattr(eval_harness.agent_mod, "build_auditor_agent", lambda *a, **k: object())
     with pytest.raises(ValueError, match="serve the env with"):
         await eval_harness.run_eval(split="heldout")
+
+
+# --- tool-call counts off a hud Trace (artifact_miss signal) ------------------
+def test_tool_call_counts_tallies_names():
+    from hud.agents.types import AgentStep
+    from hud.types import MCPToolCall, Trace
+
+    trace = Trace(steps=[
+        AgentStep(content=None, tool_calls=[
+            MCPToolCall(name="list_artifacts", arguments={}),
+            MCPToolCall(name="read_artifact", arguments={"path": "x"}),
+        ]),
+        AgentStep(content=None, tool_calls=[MCPToolCall(name="read_artifact", arguments={"path": "y"})]),
+        AgentStep(content='{"fault_present": false}', tool_calls=[]),
+    ])
+    counts = eval_harness._tool_call_counts(trace)
+    assert counts == {"list_artifacts": 1, "read_artifact": 2}
+
+
+def test_tool_call_counts_empty_trace_is_empty_dict():
+    from hud.types import Trace
+
+    assert eval_harness._tool_call_counts(Trace(steps=[])) == {}
+
+
+# --- run_eval emits the verdict sidecar next to eval_results ------------------
+async def test_run_eval_writes_verdict_sidecar(monkeypatch, tmp_path):
+    os.environ["LOOP_AUDITOR_MOCK_JUDGE_SCORE"] = "1.0"
+
+    async def fake_rollout(auditor, task):
+        sc = E._SCENARIOS[task.slug]
+        gt = E._TRACES[sc.trace_id].get("planted_failure")
+        if gt:
+            v = {"fault_present": True, "predicted_step_id": gt["step_id"],
+                 "failure_type": gt["failure_type"],
+                 "explanation": f"{gt['failure_type']} at {gt['step_id']}",
+                 "proposed_fix": "fix it"}
+        else:
+            v = {"fault_present": False, "predicted_step_id": None,
+                 "failure_type": None, "explanation": "clean", "proposed_fix": None}
+        return json.dumps(v), 7, {"read_artifact": 1}
+
+    out = tmp_path / "eval_results.jsonl"
+    monkeypatch.setattr(eval_harness, "_run_auditor_once", fake_rollout)
+    monkeypatch.setattr(eval_harness.agent_mod, "build_auditor_agent", lambda *a, **k: object())
+    monkeypatch.setattr(config, "EVAL_OUTPUT", out)
+
+    n_audit = sum(1 for s in E._SCENARIOS.values() if s.mode == "audit")
+    await eval_harness.run_eval(model_tag="trained")
+
+    sidecar = out.with_name("verdicts.jsonl")
+    assert sidecar.exists()
+    recs = [json.loads(line) for line in sidecar.read_text().splitlines() if line.strip()]
+    assert len(recs) == n_audit
+    assert all("signals" in r and r["model"] == "trained" for r in recs)
+    # a buggy scenario's sidecar carries the ground-truth + tool-call signal
+    buggy = next(r for r in recs if r["signals"]["gt_fault_present"])
+    assert buggy["signals"]["localization_correct"] is True
+    assert buggy["signals"]["artifact_tool_calls"] == 1
