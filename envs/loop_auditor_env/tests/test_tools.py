@@ -18,7 +18,8 @@ def test_get_trace_summary_returns_summary():
 
     summary = get_trace_summary(trace)
 
-    assert "clean-trace-001" in summary
+    assert "profile avatar renderer" in summary
+    assert "clean-trace-001" not in summary
     assert "iter0.step0.read-avatar" in summary
 
 

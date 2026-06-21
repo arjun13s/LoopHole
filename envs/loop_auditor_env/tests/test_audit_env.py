@@ -12,7 +12,7 @@ os.environ.setdefault("LOOP_AUDITOR_JUDGE_STUB", "1")  # no Anthropic key needed
 pytest.importorskip("hud")  # env.py imports `hud`; skip when unavailable (e.g. py3.9)
 
 from loop_auditor_env import config  # noqa: E402
-from loop_auditor_env.env import _TRACES, audit_trace, env  # noqa: E402
+from loop_auditor_env.env import _TRACES, audit_trace, build_prompt, env  # noqa: E402
 
 
 def _a_buggy():
@@ -21,6 +21,41 @@ def _a_buggy():
 
 def _a_clean():
     return next(rid for rid, t in _TRACES.items() if not t.get("planted_failure"))
+
+
+def test_prompt_says_recovered_process_faults_still_count():
+    prompt = build_prompt(
+        {
+            "run_id": "prompt_no_artifacts",
+            "task": "demo",
+            "iterations": [{"index": 0, "steps": [{"step_id": "a001", "action_type": "tool_call"}]}],
+        }
+    )
+
+    assert "fault may be recovered later" in prompt
+    assert "process mistake" in prompt
+    assert "later recovers" in prompt
+    assert "Artifact context is available" not in prompt
+
+
+def test_prompt_requires_artifact_inspection_when_artifacts_exist(tmp_path):
+    case_dir = tmp_path / "case"
+    (case_dir / "repo").mkdir(parents=True)
+    (case_dir / "repo" / "README.md").write_text("public artifact")
+
+    prompt = build_prompt(
+        {
+            "run_id": "prompt__artifact_case",
+            "task": "demo",
+            "metadata": {"case_dir": str(case_dir)},
+            "iterations": [{"index": 0, "steps": [{"step_id": "a001", "action_type": "tool_call"}]}],
+        }
+    )
+
+    assert "Artifact context is available" in prompt
+    assert "call list_artifacts" in prompt
+    assert "read_artifact or search_artifacts" in prompt
+    assert "never write a tool-use plan" in prompt
 
 
 class TestAuditTemplate:

@@ -59,7 +59,8 @@ def summarize_trace(trace: dict) -> str:
     if not isinstance(iterations, list):
         raise TypeError("trace.iterations must be a list")
 
-    lines = [f"run {trace.get('run_id', '<missing-run_id>')}: {_compact(trace.get('task', ''))}"]
+    task = trace.get("task") or str(trace.get("run_id", "<missing-run_id>")).split("__", 1)[0]
+    lines = [f"task: {_compact(task)}"]
     for iteration in iterations:
         lines.append(summarize_iteration(iteration))
     return "\n".join(lines)

@@ -77,6 +77,19 @@ def test_summarize_trace_contains_all_step_ids():
         assert step_id in summary
 
 
+def test_summarize_trace_redacts_labeled_run_id_suffixes():
+    trace = {
+        "run_id": "inventory_total__routing",
+        "task": "inventory_total",
+        "iterations": [{"index": 0, "steps": [{"step_id": "a001", "action_type": "tool_call"}]}],
+    }
+    summary = summarize_trace(trace)
+
+    assert "inventory_total" in summary
+    assert "inventory_total__routing" not in summary
+    assert "routing" not in summary
+
+
 def test_summarize_step_truncates_long_content():
     step = {
         "step_id": "long.step",
