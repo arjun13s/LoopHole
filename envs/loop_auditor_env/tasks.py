@@ -1,17 +1,15 @@
-"""Tasks for the loop-auditor env — one audit task per fixture trace.
+"""Tasks for the loop-auditor env — one task per scenario (audit + gate).
 
-Run locally:   hud eval tasks.py claude --gateway
-Group rollouts: hud eval tasks.py claude --gateway --group 8   # GRPO-style
-Sync remote:   hud sync tasks loop-auditor
-
-``env`` is re-exported so `hud eval tasks.py` can resolve the Environment.
-This file is the flat hud entry point, so imports are flat (not package-relative).
+Run:  hud eval tasks.py claude --gateway        (single)
+      hud eval tasks.py claude --gateway --group 8   (GRPO-style)
 """
 
-from env import audit_trace, env, load_fixture_traces  # noqa: F401
+import env as env_mod  # flat hud entry; re-exported for tests
+from env import audit_trace, env, gate_trace  # noqa: F401
 
 tasks = []
-for _trace in load_fixture_traces():
-    _task = audit_trace(scenario_id=f"audit__{_trace['run_id']}")
-    _task.slug = _trace["run_id"]
+for _sc in env_mod._SCENARIOS.values():
+    _template = audit_trace if _sc.mode == "audit" else gate_trace
+    _task = _template(scenario_id=_sc.id)
+    _task.slug = _sc.id
     tasks.append(_task)

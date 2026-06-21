@@ -342,14 +342,15 @@ async def gate_trace(scenario_id: "str | None" = None):
     yield _gate_reward()
 
 
-def build_taskset(traces=None):
-    """Mint one audit Task per trace (programmatic use; tasks.py is the hud entry)."""
-    traces = traces or list(_TRACES.values())
+def build_taskset(scenario_ids=None):
+    """Mint Tasks for the given scenario ids (default: all)."""
+    ids = scenario_ids or list(_SCENARIOS)
     out = []
-    for t in traces:
-        scenario_id = f"audit__{t['run_id']}"
-        task = audit_trace(scenario_id=scenario_id)
-        task.slug = t["run_id"]
+    for sid in ids:
+        sc = _SCENARIOS[sid]
+        template = audit_trace if sc.mode == "audit" else gate_trace
+        task = template(scenario_id=sid)
+        task.slug = sid
         out.append(task)
     return out
 
@@ -357,10 +358,10 @@ def build_taskset(traces=None):
 if __name__ == "__main__":
     # No-model smoke: drive a task generator directly and print the reward.
     async def _smoke() -> None:
-        scenario_id = next(s for s in _SCENARIOS if s.startswith("audit__"))
-        run_id = _SCENARIOS[scenario_id].trace_id
+        audit_id = next(s for s in _SCENARIOS if s.startswith("audit__"))
+        run_id = _SCENARIOS[audit_id].trace_id
         gt = _TRACES[run_id].get("planted_failure")
-        gen = audit_trace.func(scenario_id=scenario_id)
+        gen = audit_trace.func(scenario_id=audit_id)
         prompt = await gen.asend(None)
         print(prompt[:240], "...\n")
         if gt:
