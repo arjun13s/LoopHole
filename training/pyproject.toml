@@ -1,0 +1,21 @@
+[project]
+name = "loophole-training"
+version = "0.0.0"
+description = "Person 3 — Modal b1: base-model inference + base-eval baseline (decoupled from hud)."
+requires-python = ">=3.11"
+# Pure core (scoring + dummy backend + base-eval orchestration) needs only this,
+# so it runs/tests on a 3.14 box. Heavy backends are optional extras, lazy-imported.
+dependencies = ["jsonschema>=4.0"]
+
+[project.optional-dependencies]
+# Real Modal vLLM backend + OpenAI-compatible client to call its endpoint.
+modal = ["modal>=0.64", "openai>=1.40"]
+# Explanation-rubric judge (separate strong model; Anthropic).
+judge = ["anthropic>=0.40"]
+
+[dependency-groups]
+dev = ["pytest>=8.0"]
+
+[tool.pytest.ini_options]
+pythonpath = [".."]
+testpaths = ["tests"]
