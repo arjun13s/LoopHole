@@ -1,0 +1,81 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://loophole.dev/schemas/verdict_sidecar.json",
+  "title": "VerdictSidecar",
+  "description": "One diagnostic record per (run_id, model), emitted alongside eval_results.jsonl as verdicts.jsonl. ADDITIVE / OPTIONAL — never part of the GRPO reward. Superset of the Person 3 dashboard verdict-sidecar envelope (run_id, model) + frozen verdict core (fault_present, predicted_step_id, failure_type, explanation, proposed_fix); the dashboard reads only those and ignores `signals`. The self-improvement analyzer (schemas/improvement_record.json) reads `signals`. Every field in `signals` is computed DETERMINISTICALLY at eval time from (raw_verdict, trace_view, ground_truth) — no LLM, no network. Producer: envs/loop_auditor_env/diagnostics.py (OWNER: Claude).",
+  "type": "object",
+  "required": [
+    "run_id",
+    "model",
+    "fault_present",
+    "predicted_step_id",
+    "failure_type",
+    "explanation",
+    "proposed_fix",
+    "signals"
+  ],
+  "properties": {
+    "run_id": { "type": "string", "description": "Routing envelope: the trace under audit." },
+    "model": { "type": "string", "description": "Routing envelope: 'base' | 'trained' (free string for forward-compat)." },
+
+    "fault_present": { "type": "boolean", "description": "Verdict core (frozen verdict.json). Auditor's clean/fault decision." },
+    "predicted_step_id": { "type": ["string", "null"], "description": "Verdict core. step_id the auditor blamed, or null when clean." },
+    "failure_type": { "type": ["string", "null"], "description": "Verdict core, after alias normalization, then SANITIZED to be enum-valid-or-null so this record always passes the frozen schemas/verdict.json (the dashboard validates the core). An out-of-enum prediction is nulled HERE but preserved for the analyzer in signals.failure_type_raw + signals.type_out_of_enum." },
+    "explanation": { "type": "string", "description": "Verdict core." },
+    "proposed_fix": { "type": ["string", "null"], "description": "Verdict core." },
+
+    "signals": {
+      "type": "object",
+      "description": "Deterministic detection signals for the self-improvement analyzer. Each maps to one or more taxonomy buckets (see docs/.../loop-auditor-self-improvement-taxonomy.md).",
+      "additionalProperties": true,
+      "required": [
+        "verdict_parsed",
+        "raw_present",
+        "raw_char_len",
+        "pred_fault_present",
+        "gt_fault_present",
+        "localization_correct",
+        "failure_type_correct",
+        "explanation_score",
+        "reward",
+        "citation_passed"
+      ],
+      "properties": {
+        "verdict_parsed": { "type": "boolean", "description": "parse_verdict + validate_verdict succeeded. False ⇒ parse_failure." },
+        "raw_present": { "type": "boolean", "description": "Raw auditor output was non-empty after strip. (raw_present && !verdict_parsed ⇒ non-JSON prose / truncation.)" },
+        "raw_char_len": { "type": "integer", "minimum": 0, "description": "Character length of the raw verdict text (small + !parsed hints at truncation/empty output)." },
+
+        "failure_type_raw": { "type": ["string", "null"], "description": "The model's ORIGINAL failure_type string, before alias normalization. Drives grader_alias_change suggestions." },
+        "type_out_of_enum": { "type": "boolean", "description": "Normalized failure_type is non-null and NOT in config.FAILURE_TYPES (the model invented a category). Feeds bad_failure_type → grader_alias_change and prompt_confusion." },
+
+        "pred_fault_present": { "type": "boolean", "description": "The auditor's fault_present (mirrors the verdict core into `signals` so the analyzer reads only this block). The fault-presence checks use pred_fault_present vs gt_fault_present." },
+        "gt_fault_present": { "type": "boolean", "description": "Ground truth: this trace has a planted fault (buggy). False ⇒ clean trace." },
+        "gt_step_id": { "type": ["string", "null"], "description": "Ground-truth planted step_id (null when clean)." },
+        "gt_failure_type": { "type": ["string", "null"], "description": "Ground-truth planted failure_type (null when clean)." },
+
+        "localization_correct": { "type": "boolean", "description": "Mirror of eval_result: predicted_step_id == gt_step_id AND fault_present." },
+        "failure_type_correct": { "type": "boolean", "description": "Mirror of eval_result: failure_type == gt_failure_type." },
+        "explanation_score": { "type": "number", "minimum": 0.0, "maximum": 1.0, "description": "The deterministic 0.5-term (fix_grader, zeroed by citation gate). < EXPL_OK ⇒ weak_fix." },
+        "reward": { "type": "number", "description": "The §1.4 scalar reward for this run (for severity + ranking)." },
+
+        "citation_passed": { "type": "boolean", "description": "citation_gate.check passed (no fabricated step_ids in prose). False ⇒ fabricated_step_ref." },
+        "fabricated_step_refs": { "type": "array", "items": { "type": "string" }, "description": "The specific cited step_ids that are not in the trace (evidence for fabricated_step_ref)." },
+
+        "fix_grounded": { "type": "boolean", "description": "INFORMATIONAL: a structured `fix` dict OR a linked base clean trace exists, so the 0.5 fix term is grounded in a specific corrected action rather than the concept-group fallback. False = graded by concept fallback (still gradeable) — a Person-1 dataset-linking health signal, NOT a dataset_issue trigger on its own." },
+        "fix_concept_total": { "type": "integer", "minimum": 0, "description": "Number of expected corrective concept groups for this fault (fix_grader). 0 on a buggy trace ⇒ the fix term is structurally UNGRADEABLE (invalid planted failure_type / empty structured fix) ⇒ dataset_issue." },
+        "fix_concept_matched": { "type": "integer", "minimum": 0, "description": "How many of those concept groups the proposed_fix+explanation covered (evidence for weak_fix)." },
+
+        "gt_step_in_trace": { "type": "boolean", "description": "The planted step_id exists in the trace. False on a buggy trace ⇒ dataset_issue (broken ground truth — the planted fault points at a step that isn't there)." },
+
+        "is_rich_case": { "type": "boolean", "description": "artifacts.resolve_case_dir found a real case dir (the auditor COULD read artifacts)." },
+        "artifact_count": { "type": "integer", "minimum": 0, "description": "Number of public artifacts available for this case." },
+        "artifact_tool_calls": { "type": ["integer", "null"], "description": "Times the auditor called list/read/search_artifacts (null = unknown / trace not inspectable). 0 on a rich case ⇒ artifact_miss (high confidence)." },
+        "inspection_tool_calls": { "type": ["integer", "null"], "description": "Times the auditor called step/iteration inspection tools (null = unknown)." },
+
+        "proposed_fix_contains_code": { "type": "boolean", "description": "proposed_fix looks like CODE (fenced block, def/class/import, diff hunk). The auditor must propose a PROCESS action, never code ⇒ prompt_confusion." },
+        "explanation_empty": { "type": "boolean", "description": "fault_present is true but explanation is blank ⇒ prompt_confusion." },
+        "references_path_token": { "type": "boolean", "description": "explanation/proposed_fix names a file path or filename token. Used as the low-confidence artifact_miss fallback when artifact_tool_calls is unknown." }
+      }
+    }
+  }
+}

@@ -1,0 +1,99 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://loophole.dev/schemas/improvement_record.json",
+  "title": "ImprovementRecord",
+  "description": "One record per DEFECTIVE auditor run, emitted by the self-improvement analyzer (OWNER: Codex) from a joined (eval_result, verdict_sidecar) pair. Each record names a single primary failure bucket, the deterministic evidence that fired it, the recommended fix type, and a human-readable diagnosis. Healthy runs (full credit, no flags) produce NO record. The analyzer is a PURE function over schemas/verdict_sidecar.json `signals` — it never reads traces, calls an LLM, or touches the GRPO reward.",
+  "type": "object",
+  "required": [
+    "run_id",
+    "model",
+    "bucket",
+    "fix_type",
+    "confidence",
+    "severity",
+    "evidence",
+    "diagnosis",
+    "suggested_action"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "run_id": { "type": "string" },
+    "model": { "type": "string", "description": "'base' | 'trained' (free string)." },
+    "reward": { "type": "number", "description": "The run's §1.4 reward, copied through for ranking." },
+    "bucket": {
+      "type": "string",
+      "description": "The single primary failure bucket, assigned by the precedence decision tree in the taxonomy design note.",
+      "enum": [
+        "dataset_issue",
+        "parse_failure",
+        "false_positive_clean",
+        "false_negative_buggy",
+        "fabricated_step_ref",
+        "bad_localization",
+        "bad_failure_type",
+        "weak_fix",
+        "artifact_miss",
+        "prompt_confusion"
+      ]
+    },
+    "contributing_factors": {
+      "type": "array",
+      "description": "Zero or more secondary buckets that also fired (cross-cutting signals such as artifact_miss / prompt_confusion / weak_fix / fabricated_step_ref). Never contains `bucket`.",
+      "items": {
+        "type": "string",
+        "enum": [
+          "dataset_issue",
+          "parse_failure",
+          "false_positive_clean",
+          "false_negative_buggy",
+          "fabricated_step_ref",
+          "bad_localization",
+          "bad_failure_type",
+          "weak_fix",
+          "artifact_miss",
+          "prompt_confusion"
+        ]
+      }
+    },
+    "fix_type": {
+      "type": "string",
+      "description": "The recommended lever. Exactly one. The current deterministic analyzer (§6) emits only prompt_change | grader_alias_change | dataset_repair | new_training_example. `tool_change` (a §4 discretionary lever when the tool surface is the blocker) and `no_action` (healthy runs produce NO record) are RESERVED for hand-authored records / future analyzer versions — not emitted by the deterministic tree.",
+      "enum": [
+        "prompt_change",
+        "tool_change",
+        "grader_alias_change",
+        "dataset_repair",
+        "new_training_example",
+        "no_action"
+      ]
+    },
+    "confidence": {
+      "type": "string",
+      "description": "high = the bucket was detected directly from a definitive signal; candidate = inferred from a fallback heuristic (e.g. artifact_miss without tool-call data).",
+      "enum": ["high", "candidate"]
+    },
+    "severity": {
+      "type": "string",
+      "description": "reward == 0 ⇒ high; partial credit ⇒ medium; full credit but a latent flag tripped ⇒ low.",
+      "enum": ["high", "medium", "low"]
+    },
+    "evidence": {
+      "type": "object",
+      "description": "The specific signal values that fired this bucket (bucket-specific keys; see the taxonomy note). Lets the report show WHY without re-deriving.",
+      "additionalProperties": true
+    },
+    "suggested_alias": {
+      "type": "object",
+      "description": "Only on bad_failure_type / prompt_confusion driven by an out-of-enum type: { raw_type_key: canonical_failure_type } to add to config.FAILURE_TYPE_ALIASES. Empty/absent otherwise.",
+      "additionalProperties": { "type": "string" }
+    },
+    "diagnosis": {
+      "type": "string",
+      "description": "One deterministic, templated sentence: what went wrong, where, and the signal that proves it."
+    },
+    "suggested_action": {
+      "type": "string",
+      "description": "One deterministic, templated sentence: the concrete change to make (matches fix_type)."
+    }
+  }
+}
