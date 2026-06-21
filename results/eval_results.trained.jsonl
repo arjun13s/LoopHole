@@ -1,0 +1,10 @@
+{"run_id": "inventory_total__clean", "model": "trained", "localization_correct": true, "failure_type_correct": true, "explanation_score": 0.0, "reward": 1.0, "trace_tokens": 0, "auditor_tokens": 3445}
+{"run_id": "inventory_total__resource_misuse", "model": "trained", "localization_correct": true, "failure_type_correct": true, "explanation_score": 0.5, "reward": 1.55, "trace_tokens": 0, "auditor_tokens": 2377}
+{"run_id": "inventory_total__tool_misuse", "model": "trained", "localization_correct": true, "failure_type_correct": true, "explanation_score": 0.0, "reward": 1.0, "trace_tokens": 0, "auditor_tokens": 2698}
+{"run_id": "inventory_total__routing", "model": "trained", "localization_correct": true, "failure_type_correct": true, "explanation_score": 1.0, "reward": 1.8, "trace_tokens": 0, "auditor_tokens": 2488}
+{"run_id": "inventory_total__wrong_file_edit", "model": "trained", "localization_correct": false, "failure_type_correct": true, "explanation_score": 0.5, "reward": 0.55, "trace_tokens": 0, "auditor_tokens": 3444}
+{"run_id": "ini_parser__clean", "model": "trained", "localization_correct": true, "failure_type_correct": true, "explanation_score": 0.0, "reward": 1.0, "trace_tokens": 0, "auditor_tokens": 2997}
+{"run_id": "ini_parser__resource_misuse", "model": "trained", "localization_correct": false, "failure_type_correct": true, "explanation_score": 0.5, "reward": 0.55, "trace_tokens": 0, "auditor_tokens": 2325}
+{"run_id": "ini_parser__tool_misuse", "model": "trained", "localization_correct": true, "failure_type_correct": true, "explanation_score": 0.0, "reward": 1.0, "trace_tokens": 0, "auditor_tokens": 2870}
+{"run_id": "ini_parser__routing", "model": "trained", "localization_correct": true, "failure_type_correct": true, "explanation_score": 1.0, "reward": 1.8, "trace_tokens": 0, "auditor_tokens": 2982}
+{"run_id": "ini_parser__wrong_file_edit", "model": "trained", "localization_correct": false, "failure_type_correct": true, "explanation_score": 1.0, "reward": 0.8, "trace_tokens": 0, "auditor_tokens": 2755}
