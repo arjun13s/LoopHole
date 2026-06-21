@@ -98,12 +98,14 @@ def main() -> int:
     user_prompt = " ".join(a for a in sys.argv[1:] if not a.startswith("-")) or "build me a note taking app"
     ws = setup_workspace()
 
-    # Wipe the shell invocation off-screen so the recording starts clean.
+    # Wipe the real shell invocation off-screen, then re-type a clean, branded
+    # CLI command — this is the call-to-action viewers should remember.
     console.clear()
     console.print()
-    # LOOPHOLE_NO_PROMPT=1 hides the prompt echo too (composite your own in post).
+    # LOOPHOLE_NO_PROMPT=1 hides the command line (composite your own in post).
     if os.environ.get("LOOPHOLE_NO_PROMPT") != "1":
-        typeline(user_prompt)
+        cmd_label = os.environ.get("LOOPHOLE_CMD_LABEL") or f'loophole "{user_prompt}"'
+        typeline(cmd_label)
         time.sleep(0.5 * SPEED)
 
     # 1) BUILD — real Claude implements the app to satisfy the visible tests.
