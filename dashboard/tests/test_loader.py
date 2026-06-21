@@ -6,6 +6,7 @@ FROZEN schemas before any rendering. Invalid data fails fast with a clear error.
 
 from __future__ import annotations
 
+import argparse
 import json
 
 import pytest
@@ -87,3 +88,26 @@ def test_load_traces_keys_by_run_id(tmp_path):
     p.write_text(json.dumps(t))
     traces = loader.load_traces([p])
     assert traces["x"]["task"] == "t"
+
+
+def test_resolve_inputs_mock_returns_bundled_fixtures():
+    args = argparse.Namespace(mock=True, results=None, verdicts=None, traces=None)
+    results, verdicts, traces = loader.resolve_inputs(args)
+    assert results == [loader.FIXTURES_DIR / "eval_results.jsonl"]
+    assert verdicts == loader.FIXTURES_DIR / "verdicts.jsonl"
+    assert traces == sorted((loader.FIXTURES_DIR / "traces").glob("*.json"))
+
+
+def test_resolve_inputs_explicit_paths():
+    from pathlib import Path
+
+    args = argparse.Namespace(
+        mock=False,
+        results=["results/base.jsonl", "results/trained.jsonl"],
+        verdicts="results/verdicts.jsonl",
+        traces=None,
+    )
+    results, verdicts, traces = loader.resolve_inputs(args)
+    assert results == [Path("results/base.jsonl"), Path("results/trained.jsonl")]
+    assert verdicts == Path("results/verdicts.jsonl")
+    assert traces == []

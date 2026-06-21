@@ -15,7 +15,6 @@ from __future__ import annotations
 
 import argparse
 import sys
-from pathlib import Path
 
 from rich.console import Console
 
@@ -32,20 +31,8 @@ def _build_parser() -> argparse.ArgumentParser:
     return p
 
 
-def _resolve_inputs(args):
-    if args.mock or not args.results:
-        return loader.bundled_fixture_paths()
-    results = [Path(p) for p in args.results]
-    verdicts = Path(args.verdicts) if args.verdicts else Path("/nonexistent")  # optional
-    traces: list[Path] = []
-    if args.traces:
-        tp = Path(args.traces)
-        traces = sorted(tp.glob("*.json")) if tp.is_dir() else [tp]
-    return results, verdicts, traces
-
-
 def run_static(args) -> int:
-    results_paths, verdicts_path, trace_paths = _resolve_inputs(args)
+    results_paths, verdicts_path, trace_paths = loader.resolve_inputs(args)
     console = Console()
     try:
         records = loader.load_eval_results(results_paths)

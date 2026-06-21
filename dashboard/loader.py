@@ -110,3 +110,20 @@ def load_traces(paths) -> dict:
         validator.validate(trace)
         out[trace["run_id"]] = trace
     return out
+
+
+def resolve_inputs(args):
+    """Map parsed CLI args to (results_paths, verdicts_path, trace_paths).
+
+    Shared by the static (--render) and interactive (TUI) entry points. Falls
+    back to the bundled --mock fixtures when no explicit results are given.
+    """
+    if args.mock or not args.results:
+        return bundled_fixture_paths()
+    results = [Path(p) for p in args.results]
+    verdicts = Path(args.verdicts) if args.verdicts else Path("/nonexistent")  # optional
+    traces: list[Path] = []
+    if args.traces:
+        tp = Path(args.traces)
+        traces = sorted(tp.glob("*.json")) if tp.is_dir() else [tp]
+    return results, verdicts, traces
