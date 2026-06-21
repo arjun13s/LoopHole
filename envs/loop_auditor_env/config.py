@@ -77,7 +77,10 @@ W_FAILURE_TYPE = 0.3
 W_EXPLANATION = 0.5
 
 # --- gate (Design Y) + cost knobs (env-overridable) --------------------------
-LAMBDA_TOKENS = float(os.environ.get("LOOP_AUDITOR_LAMBDA_TOKENS", "0.001"))
+# Calibrated against real traces: gate runs meter ~thousands of tokens, so the
+# token term must be small enough that detection (~1.0-1.3) dominates while still
+# giving a savings gradient. 0.001 made the penalty swamp detection (-9 rewards).
+LAMBDA_TOKENS = float(os.environ.get("LOOP_AUDITOR_LAMBDA_TOKENS", "0.0001"))
 LAMBDA_X = float(os.environ.get("LOOP_AUDITOR_LAMBDA_X", "0.0"))  # 0 honors frozen §1.4
 SOLUTION_COST = int(os.environ.get("LOOP_AUDITOR_SOLUTION_COST", "300"))
 GATE_TURN_LIMIT = int(os.environ.get("LOOP_AUDITOR_GATE_TURN_LIMIT", "32"))

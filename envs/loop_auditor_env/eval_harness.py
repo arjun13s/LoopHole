@@ -119,7 +119,10 @@ def run_eval(split: str = "heldout", model_tag: str = "base") -> dict:
     ``model_tag`` is one of {"base", "trained"} (eval_result.json enum).
     TODO: source ``split`` from Person 1's held-out dataset instead of fixtures.
     """
-    traces = env_mod.load_fixture_traces()
+    if split == "fixtures":
+        traces = env_mod.load_fixture_traces()
+    else:
+        traces = env_mod.load_jsonl_traces(config.TASKSET_DIR / f"{split}.jsonl")
     auditor = agent_mod.build_auditor_agent()
     records = []
     for trace in traces:
