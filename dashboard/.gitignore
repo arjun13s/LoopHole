@@ -1,0 +1,8 @@
+# Scoped to /dashboard — avoids touching the shared root .gitignore (conflict-free).
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+*.egg-info/
+# Generated demo output consumed at runtime (not committed).
+/results/

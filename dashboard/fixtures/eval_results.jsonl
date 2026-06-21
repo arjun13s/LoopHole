@@ -1,0 +1,6 @@
+{"run_id": "buggy-resource-001", "model": "base", "localization_correct": false, "failure_type_correct": false, "explanation_score": 0.0, "reward": 0.0, "trace_tokens": 38, "auditor_tokens": 220}
+{"run_id": "buggy-routing-002", "model": "base", "localization_correct": true, "failure_type_correct": true, "explanation_score": 0.4, "reward": 1.5, "trace_tokens": 37, "auditor_tokens": 240}
+{"run_id": "clean-003", "model": "base", "localization_correct": false, "failure_type_correct": false, "explanation_score": 0.0, "reward": 0.0, "trace_tokens": 27, "auditor_tokens": 210}
+{"run_id": "buggy-resource-001", "model": "trained", "localization_correct": true, "failure_type_correct": true, "explanation_score": 0.8, "reward": 1.7, "trace_tokens": 38, "auditor_tokens": 150}
+{"run_id": "buggy-routing-002", "model": "trained", "localization_correct": true, "failure_type_correct": true, "explanation_score": 0.85, "reward": 1.725, "trace_tokens": 37, "auditor_tokens": 140}
+{"run_id": "clean-003", "model": "trained", "localization_correct": true, "failure_type_correct": true, "explanation_score": 0.0, "reward": 1.0, "trace_tokens": 27, "auditor_tokens": 120}

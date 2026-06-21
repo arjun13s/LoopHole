@@ -1,0 +1,29 @@
+[project]
+name = "loophole-dashboard"
+version = "0.0.0"
+description = "Loop-Auditor TUI dashboard (Person 3) — Rich static-render first, Textual interactive as stretch."
+requires-python = ">=3.11"
+# Standalone consumer of frozen schemas + eval-result/verdict JSONL.
+# Intentionally NO dependency on loop_auditor_env (decoupled, conflict-free).
+# Wider Python range than the hud env (no <3.13 cap) precisely BECAUSE it is
+# decoupled: rich/jsonschema/textual support 3.14, so it installs on both the
+# team's 3.12 and a 3.14 dev box.
+dependencies = [
+    "rich>=13.7",
+    "jsonschema>=4.0",
+]
+
+[project.optional-dependencies]
+# Stretch: interactive TUI. Needs a real terminal (NOT visible inside agent CLIs).
+interactive = ["textual>=0.60"]
+
+[dependency-groups]
+dev = ["pytest>=8.0"]
+
+[project.scripts]
+loophole-dashboard = "dashboard.__main__:main"
+
+[tool.pytest.ini_options]
+# Run from inside dashboard/ ; the package imports as `dashboard`.
+pythonpath = [".."]
+testpaths = ["tests"]
