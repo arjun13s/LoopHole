@@ -70,11 +70,19 @@ def token_chart(base: model_mod.Aggregate, trained: model_mod.Aggregate) -> Pane
     return Panel(Group(*rows), title="Auditor token cost  (lower = cheaper audit)", box=box.ROUNDED)
 
 
-def _verdict_correct(trace: dict, predicted_step_id: str | None) -> bool:
+def _verdict_correct(trace: dict, verdict: dict) -> bool:
     planted = model_mod.planted_step_id(trace)
     if planted is None:
-        return predicted_step_id == "NONE"
-    return predicted_step_id == planted
+        # Clean trace: correct iff the auditor reports no fault (schemas/verdict.json).
+        return verdict.get("fault_present") is False
+    return verdict.get("predicted_step_id") == planted
+
+
+def _verdict_desc(verdict: dict) -> str:
+    """Readable one-line summary of an auditor verdict (handles clean = nulls)."""
+    if verdict.get("fault_present") is False:
+        return "no fault"
+    return f"{verdict.get('predicted_step_id')}  ({verdict.get('failure_type')})"
 
 
 def trace_replay(trace: dict, verdicts: dict) -> Panel:
@@ -102,9 +110,9 @@ def trace_replay(trace: dict, verdicts: dict) -> Panel:
         v = verdicts.get((trace["run_id"], tag))
         if not v:
             continue
-        ok = _verdict_correct(trace, v["predicted_step_id"])
+        ok = _verdict_correct(trace, v)
         mark = Text("✓", style=_GOOD) if ok else Text("✗", style=_BAD)
-        calls.append(mark + Text(f" {tag:>7}: ", style="bold") + Text(f"{v['predicted_step_id']}  ({v['failure_type']})"))
+        calls.append(mark + Text(f" {tag:>7}: ", style="bold") + Text(_verdict_desc(v)))
     body = [tree] + ([Text("")] + calls if calls else [])
     return Panel(Group(*body), box=box.ROUNDED)
 
@@ -122,8 +130,8 @@ def verdict_panel(trace: dict, verdicts: dict) -> Panel | None:
         (trained_v or {}).get("explanation", "—"),
     )
     t.add_row(
-        Text("fix: " + (base_v or {}).get("proposed_fix", "—"), style=_DIM),
-        Text("fix: " + (trained_v or {}).get("proposed_fix", "—"), style=_DIM),
+        Text("fix: " + ((base_v or {}).get("proposed_fix") or "—"), style=_DIM),
+        Text("fix: " + ((trained_v or {}).get("proposed_fix") or "—"), style=_DIM),
     )
     return Panel(t, title=f"Verdict drill-down · {trace['run_id']}", box=box.ROUNDED)
 

@@ -35,7 +35,7 @@ def bundled_fixture_paths():
 # frozen verdict object plus routing keys. We validate the verdict CORE against
 # schemas/verdict.json and treat these two as the envelope.
 _VERDICT_ENVELOPE_KEYS = ("run_id", "model")
-_VERDICT_CORE_KEYS = ("predicted_step_id", "failure_type", "explanation", "proposed_fix")
+_VERDICT_CORE_KEYS = ("fault_present", "predicted_step_id", "failure_type", "explanation", "proposed_fix")
 
 
 @lru_cache(maxsize=None)

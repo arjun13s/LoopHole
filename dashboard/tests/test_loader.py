@@ -68,7 +68,7 @@ def test_load_verdicts_missing_file_is_optional(tmp_path):
 def test_load_verdicts_keys_by_run_and_model(tmp_path):
     p = tmp_path / "verdicts.jsonl"
     _write(p, [{
-        "run_id": "a", "model": "trained",
+        "run_id": "a", "model": "trained", "fault_present": True,
         "predicted_step_id": "iter0.step1", "failure_type": "routing",
         "explanation": "why", "proposed_fix": "fix",
     }])
