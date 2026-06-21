@@ -60,6 +60,23 @@ async def test_gate_clean_trailing_stop_not_penalized():
     assert reward > 0.0                              # NOT penalized as a false abort
 
 
+async def test_gate_rejects_out_of_enum_failure_type():
+    E._begin_run(_gate_scenario(buggy=True))
+    await E.observe_next()
+    msg = await E.gate("flag", reason="x", step_id="a1", failure_type="not-a-type")
+    assert msg.startswith("error:")  # in-rollout feedback, model can retry
+    assert not any(d["decision"] == "flag" for d in E._run["decisions"])  # not recorded
+
+
+async def test_gate_coerces_alias_failure_type():
+    E._begin_run(_gate_scenario(buggy=True))
+    await E.observe_next()
+    msg = await E.gate("flag", reason="x", step_id="a1", failure_type="test failure")
+    assert "recorded" in msg
+    rec = [d for d in E._run["decisions"] if d["decision"] == "flag"][-1]
+    assert rec["failure_type"] == "tool_misuse"  # alias normalized to the enum
+
+
 async def test_gate_buggy_self_correction_counts():
     sc = _gate_scenario(buggy=True)
     gt = E._TRACES[sc.trace_id]["planted_failure"]
