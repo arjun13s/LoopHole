@@ -30,7 +30,7 @@ from hud import Environment
 from hud.capabilities import Capability
 
 try:  # package mode (pytest)
-    from . import accounting, citation_gate, config, fix_grader, judge, scenarios, serialize
+    from . import accounting, citation_gate, config, fix_grader, judge, rich_loader, scenarios, serialize
     from . import reward as reward_mod
     from . import tools as tools_mod
     from . import verdict as verdict_mod
@@ -40,6 +40,7 @@ except ImportError:  # flat mode (hud `env:env`)
     import config
     import fix_grader
     import judge
+    import rich_loader
     import scenarios
     import serialize
     import reward as reward_mod
@@ -85,8 +86,9 @@ def select_traces() -> "list[dict]":
     """Pick the trace source from config.DATASET.
 
     "fixtures" (default) -> the 3 local sanity traces; "train"/"heldout" ->
-    taskset/<split>.jsonl; "all" -> train+heldout; otherwise treat config.DATASET
-    as a path to a .jsonl file or a directory of *.json traces.
+    taskset/<split>.jsonl; "all" -> train+heldout; "rich_train"/"rich_heldout"/
+    "rich_all" -> Person 1's rich generated taskset (normalized via rich_loader);
+    otherwise treat config.DATASET as a path to a .jsonl file or a dir of *.json.
     """
     ds = config.DATASET
     if ds == "fixtures":
@@ -97,6 +99,13 @@ def select_traces() -> "list[dict]":
         return load_jsonl_traces(config.TASKSET_DIR / "train.jsonl") + load_jsonl_traces(
             config.TASKSET_DIR / "heldout.jsonl"
         )
+    if ds in ("rich_train", "rich_heldout"):
+        split = ds.split("_", 1)[1]
+        return rich_loader.load_rich_taskset(config.RICH_TASKSET_DIR / f"{split}.jsonl", config.REPO_ROOT)
+    if ds == "rich_all":
+        return rich_loader.load_rich_taskset(
+            config.RICH_TASKSET_DIR / "train.jsonl", config.REPO_ROOT
+        ) + rich_loader.load_rich_taskset(config.RICH_TASKSET_DIR / "heldout.jsonl", config.REPO_ROOT)
     p = Path(ds)
     return load_fixture_traces(p) if p.is_dir() else load_jsonl_traces(p)
 
