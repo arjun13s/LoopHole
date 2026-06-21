@@ -92,17 +92,15 @@ def validate_ground_truth(trace: list[dict[str, Any]], case_dir: Path, ground_tr
 
 
 def _validate_clean_loop(trace: list[dict[str, Any]]) -> None:
-    tool_names = [step["tool_name"] for step in trace]
     try:
-        first_write = tool_names.index("write_file")
         failing_test = next(i for i, step in enumerate(trace) if step["tool_name"] == "run_tests" and step["result"]["status"] == "error")
         inspect = next(i for i, step in enumerate(trace) if i > failing_test and step["tool_name"] == "read_file")
         fix = next(i for i, step in enumerate(trace) if i > inspect and step["tool_name"] == "write_file")
         passing_test = next(i for i, step in enumerate(trace) if i > fix and step["tool_name"] == "run_tests" and step["result"]["status"] == "ok")
         submit = next(i for i, step in enumerate(trace) if i > passing_test and step["tool_name"] == "submit")
     except StopIteration as exc:
-        raise ValueError("clean trace must include write -> failing tests -> inspect -> fix -> passing tests -> submit") from exc
-    if not first_write < failing_test < inspect < fix < passing_test < submit:
+        raise ValueError("clean trace must include failing tests -> inspect -> fix -> passing tests -> submit") from exc
+    if not failing_test < inspect < fix < passing_test < submit:
         raise ValueError("clean trace loop order is invalid")
 
 

@@ -1,0 +1,12 @@
+{
+  "case_id": "date_range_boundary__live_000__wrong_file_edit",
+  "failure_type": "wrong_file_edit",
+  "fault_present": true,
+  "fault_step_id": "a006",
+  "fix": {
+    "action": "replace",
+    "step_id": "a006",
+    "target": "repo/src/date_ranges.py",
+    "tool_name": "write_file"
+  }
+}
