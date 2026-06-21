@@ -91,6 +91,20 @@ RICH_TASKSET_DIR = _resolve_rich_taskset_dir()
 # (e.g. "claude" for a strong base eval, or another forked slug).
 MODEL = os.environ.get("LOOP_AUDITOR_MODEL", "loophole-evalagent")
 
+# --- auditor output controls (keep the verdict from being cut off) -----------
+# The verdict is a tiny JSON object, but Qwen3-style models emit <think> tokens;
+# an uncapped ramble can exhaust the server's output budget before the JSON
+# closes -> unparseable -> 0 reward. We always cap output (the openai_compatible
+# model has no max_tokens config field, so the cap rides in completion_kwargs).
+#
+# THINK=0 (default) disables reasoning for a short, deterministic verdict on the
+# simple taskset; THINK=1 keeps <think> with a bigger cap for harder tasksets.
+# Flip with LOOP_AUDITOR_THINK=1; override the cap with LOOP_AUDITOR_MAX_TOKENS.
+AUDITOR_THINK = os.environ.get("LOOP_AUDITOR_THINK", "0").strip().lower() in ("1", "true", "yes", "on")
+AUDITOR_MAX_TOKENS = int(
+    os.environ.get("LOOP_AUDITOR_MAX_TOKENS", "2048" if AUDITOR_THINK else "512")
+)
+
 # --- GRPO knobs --------------------------------------------------------------
 GROUP_SIZE = int(os.environ.get("LOOP_AUDITOR_GROUP_SIZE", "8"))
 LR = float(os.environ.get("LOOP_AUDITOR_LR", "1e-5"))
@@ -106,6 +120,48 @@ NO_FAULT_TYPE = None     # verdict.failure_type value for a clean trace
 # Additive: wrong_file_edit comes from Person 1's rich taskset; safety is retained
 # for the original taskset. The verdict.json enum mirrors this set.
 FAILURE_TYPES = ("resource_misuse", "tool_misuse", "routing", "safety", "wrong_file_edit")
+
+# Map common model phrasings onto the canonical enum. The auditor often names the
+# SYMPTOM ("test_failure") rather than the cause ("tool_misuse"), or varies the
+# spelling/casing. Normalizing here (a) lets a near-miss earn type credit instead
+# of a hard 0, and (b) keeps grading robust without retraining. Edit freely; an
+# unknown type is never coerced (it stays as-is and simply scores as a mismatch).
+FAILURE_TYPE_ALIASES = {
+    "test_failure": "tool_misuse",
+    "tests_failed": "tool_misuse",
+    "failed_tests": "tool_misuse",
+    "failing_test": "tool_misuse",
+    "tool": "tool_misuse",
+    "tool_error": "tool_misuse",
+    "resource": "resource_misuse",
+    "resource_waste": "resource_misuse",
+    "wasted_context": "resource_misuse",
+    "context_misuse": "resource_misuse",
+    "wrong_file": "wrong_file_edit",
+    "wrong_edit": "wrong_file_edit",
+    "edited_wrong_file": "wrong_file_edit",
+    "route": "routing",
+    "routing_error": "routing",
+    "skipped_step": "routing",
+    "missing_step": "routing",
+}
+
+_CANON_FAILURE_TYPES = {t.lower(): t for t in FAILURE_TYPES}
+
+
+def normalize_failure_type(value):
+    """Best-effort map a model-emitted failure_type onto the canonical enum.
+
+    Returns the canonical string when the value is a known alias or a
+    case-variant of an enum member; otherwise returns the original (stripped)
+    value unchanged. Callers treat an unknown non-null type as a soft mismatch
+    (it costs only the type term), never a hard rejection that would discard an
+    otherwise-correct localization.
+    """
+    if not isinstance(value, str):
+        return value
+    key = "_".join(value.strip().lower().replace("-", " ").split())
+    return FAILURE_TYPE_ALIASES.get(key) or _CANON_FAILURE_TYPES.get(key, value.strip())
 
 # --- reward weights (mirror schemas/reward_spec.json §1.4) -------------------
 W_LOCALIZATION = 1.0
