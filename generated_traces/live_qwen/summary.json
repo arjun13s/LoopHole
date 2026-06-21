@@ -1,0 +1,149 @@
+{
+  "model_id": "Qwen/Qwen2.5-Coder-7B-Instruct",
+  "results": [
+    {
+      "case_dir": "/tmp/loophole_live/live_cases/date_range_boundary/live_000/clean",
+      "case_id": "date_range_boundary__live_000",
+      "debug_tail": "a004:run_tests:error:1 failed, 3 passed in 0.04s | a005:read_file:ok:Read test_outputs/a004.txt (1381 chars). | a006:write_file:ok:Wrote repo/src/date_ranges.py; diff saved to patches/a006.diff. | a007:run_tests:ok:4 passed in 0.01s | a008:submit:ok:Submitted files.",
+      "ground_truth_path": "/tmp/loophole_live/live_ground_truth/date_range_boundary__live_000__clean.json",
+      "reason": "ok",
+      "steps": 8,
+      "success": true
+    },
+    {
+      "case_dir": "/tmp/loophole_live/live_cases/date_range_boundary/live_001/clean",
+      "case_id": "date_range_boundary__live_001",
+      "debug_tail": "a004:run_tests:error:1 failed, 3 passed in 0.04s | a005:read_file:ok:Read test_outputs/a004.txt (1381 chars). | a006:write_file:ok:Wrote repo/src/date_ranges.py; diff saved to patches/a006.diff. | a007:run_tests:ok:4 passed in 0.01s | a008:submit:ok:Submitted files.",
+      "ground_truth_path": "/tmp/loophole_live/live_ground_truth/date_range_boundary__live_001__clean.json",
+      "reason": "ok",
+      "steps": 8,
+      "success": true
+    },
+    {
+      "case_dir": "/tmp/loophole_live/live_cases/date_range_boundary/live_002/clean",
+      "case_id": "date_range_boundary__live_002",
+      "debug_tail": "a004:run_tests:error:1 failed, 3 passed in 0.03s | a005:read_file:ok:Read test_outputs/a004.txt (1381 chars). | a006:write_file:ok:Wrote repo/src/date_ranges.py; diff saved to patches/a006.diff. | a007:run_tests:ok:4 passed in 0.01s | a008:submit:ok:Submitted files.",
+      "ground_truth_path": "/tmp/loophole_live/live_ground_truth/date_range_boundary__live_002__clean.json",
+      "reason": "ok",
+      "steps": 8,
+      "success": true
+    },
+    {
+      "case_dir": "/tmp/loophole_live/live_cases/date_range_boundary/live_003/clean",
+      "case_id": "date_range_boundary__live_003",
+      "debug_tail": "a004:run_tests:error:1 failed, 3 passed in 0.04s | a005:read_file:ok:Read test_outputs/a004.txt (1381 chars). | a006:write_file:ok:Wrote repo/src/date_ranges.py; diff saved to patches/a006.diff. | a007:run_tests:ok:4 passed in 0.01s | a008:submit:ok:Submitted files.",
+      "ground_truth_path": "/tmp/loophole_live/live_ground_truth/date_range_boundary__live_003__clean.json",
+      "reason": "ok",
+      "steps": 8,
+      "success": true
+    },
+    {
+      "case_dir": "/tmp/loophole_live/failed_cases/query_pipeline_upstream/live_000/attempt",
+      "case_id": "query_pipeline_upstream__live_000",
+      "debug_tail": "a001:read_file:ok:Read repo/tests/test_query_pipeline.py (403 chars). | a002:read_file:ok:Read repo/src/tokenizer.py (450 chars). | a003:submit:ok:Submitted files.",
+      "ground_truth_path": null,
+      "reason": "worker submitted without passing tests",
+      "steps": 3,
+      "success": false
+    },
+    {
+      "case_dir": "/tmp/loophole_live/failed_cases/query_pipeline_upstream/live_001/attempt",
+      "case_id": "query_pipeline_upstream__live_001",
+      "debug_tail": "a001:read_file:ok:Read repo/tests/test_query_pipeline.py (403 chars). | a002:read_file:ok:Read repo/src/tokenizer.py (450 chars). | a003:submit:ok:Submitted files.",
+      "ground_truth_path": null,
+      "reason": "worker submitted without passing tests",
+      "steps": 3,
+      "success": false
+    },
+    {
+      "case_dir": "/tmp/loophole_live/failed_cases/query_pipeline_upstream/live_002/attempt",
+      "case_id": "query_pipeline_upstream__live_002",
+      "debug_tail": "a001:read_file:ok:Read repo/tests/test_query_pipeline.py (403 chars). | a002:read_file:ok:Read repo/src/tokenizer.py (450 chars). | a003:submit:ok:Submitted files.",
+      "ground_truth_path": null,
+      "reason": "worker submitted without passing tests",
+      "steps": 3,
+      "success": false
+    },
+    {
+      "case_dir": "/tmp/loophole_live/failed_cases/query_pipeline_upstream/live_003/attempt",
+      "case_id": "query_pipeline_upstream__live_003",
+      "debug_tail": "a001:read_file:ok:Read repo/tests/test_query_pipeline.py (403 chars). | a002:read_file:ok:Read repo/src/tokenizer.py (450 chars). | a003:submit:ok:Submitted files.",
+      "ground_truth_path": null,
+      "reason": "worker submitted without passing tests",
+      "steps": 3,
+      "success": false
+    },
+    {
+      "case_dir": "/tmp/loophole_live/failed_cases/duration_multi_symptom/live_000/attempt",
+      "case_id": "duration_multi_symptom__live_000",
+      "debug_tail": "a012:read_file:ok:Read repo/src/durations.py (474 chars). | a013:read_file:ok:Read repo/tests/test_durations.py (518 chars). | a014:read_file:ok:Read repo/src/durations.py (474 chars). | a015:read_file:ok:Read repo/tests/test_durations.py (518 chars). | a016:read_file:ok:Read repo/src/durations.py (474 chars).",
+      "ground_truth_path": null,
+      "reason": "worker did not submit",
+      "steps": 16,
+      "success": false
+    },
+    {
+      "case_dir": "/tmp/loophole_live/failed_cases/duration_multi_symptom/live_001/attempt",
+      "case_id": "duration_multi_symptom__live_001",
+      "debug_tail": "a012:read_file:ok:Read repo/src/durations.py (474 chars). | a013:read_file:ok:Read repo/tests/test_durations.py (518 chars). | a014:read_file:ok:Read repo/src/durations.py (474 chars). | a015:read_file:ok:Read repo/tests/test_durations.py (518 chars). | a016:read_file:ok:Read repo/src/durations.py (474 chars).",
+      "ground_truth_path": null,
+      "reason": "worker did not submit",
+      "steps": 16,
+      "success": false
+    },
+    {
+      "case_dir": "/tmp/loophole_live/failed_cases/duration_multi_symptom/live_002/attempt",
+      "case_id": "duration_multi_symptom__live_002",
+      "debug_tail": "a012:read_file:ok:Read repo/src/durations.py (474 chars). | a013:read_file:ok:Read repo/tests/test_durations.py (518 chars). | a014:read_file:ok:Read repo/src/durations.py (474 chars). | a015:read_file:ok:Read repo/tests/test_durations.py (518 chars). | a016:read_file:ok:Read repo/src/durations.py (474 chars).",
+      "ground_truth_path": null,
+      "reason": "worker did not submit",
+      "steps": 16,
+      "success": false
+    },
+    {
+      "case_dir": "/tmp/loophole_live/failed_cases/duration_multi_symptom/live_003/attempt",
+      "case_id": "duration_multi_symptom__live_003",
+      "debug_tail": "a012:read_file:ok:Read repo/src/durations.py (474 chars). | a013:read_file:ok:Read repo/tests/test_durations.py (518 chars). | a014:read_file:ok:Read repo/src/durations.py (474 chars). | a015:read_file:ok:Read repo/tests/test_durations.py (518 chars). | a016:read_file:ok:Read repo/src/durations.py (474 chars).",
+      "ground_truth_path": null,
+      "reason": "worker did not submit",
+      "steps": 16,
+      "success": false
+    },
+    {
+      "case_dir": "/tmp/loophole_live/failed_cases/config_default_red_herring/live_000/attempt",
+      "case_id": "config_default_red_herring__live_000",
+      "debug_tail": "a001:read_file:ok:Read repo/tests/test_report_title.py (495 chars). | a002:read_file:ok:Read repo/src/formatter.py (307 chars). | a003:read_file:ok:Read repo/src/config_loader.py (257 chars). | a004:submit:ok:Submitted files.",
+      "ground_truth_path": null,
+      "reason": "worker submitted without passing tests",
+      "steps": 4,
+      "success": false
+    },
+    {
+      "case_dir": "/tmp/loophole_live/failed_cases/config_default_red_herring/live_001/attempt",
+      "case_id": "config_default_red_herring__live_001",
+      "debug_tail": "a001:read_file:ok:Read repo/tests/test_report_title.py (495 chars). | a002:read_file:ok:Read repo/src/formatter.py (307 chars). | a003:read_file:ok:Read repo/src/config_loader.py (257 chars). | a004:submit:ok:Submitted files.",
+      "ground_truth_path": null,
+      "reason": "worker submitted without passing tests",
+      "steps": 4,
+      "success": false
+    },
+    {
+      "case_dir": "/tmp/loophole_live/failed_cases/config_default_red_herring/live_002/attempt",
+      "case_id": "config_default_red_herring__live_002",
+      "debug_tail": "a001:read_file:ok:Read repo/tests/test_report_title.py (495 chars). | a002:read_file:ok:Read repo/src/formatter.py (307 chars). | a003:read_file:ok:Read repo/src/config_loader.py (257 chars). | a004:submit:ok:Submitted files.",
+      "ground_truth_path": null,
+      "reason": "worker submitted without passing tests",
+      "steps": 4,
+      "success": false
+    },
+    {
+      "case_dir": "/tmp/loophole_live/failed_cases/config_default_red_herring/live_003/attempt",
+      "case_id": "config_default_red_herring__live_003",
+      "debug_tail": "a001:read_file:ok:Read repo/tests/test_report_title.py (495 chars). | a002:read_file:ok:Read repo/src/formatter.py (307 chars). | a003:read_file:ok:Read repo/src/config_loader.py (257 chars). | a004:submit:ok:Submitted files.",
+      "ground_truth_path": null,
+      "reason": "worker submitted without passing tests",
+      "steps": 4,
+      "success": false
+    }
+  ]
+}

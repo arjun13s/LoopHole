@@ -191,8 +191,12 @@ def _add_wrong_file_recovery(trace: list[dict], fix_step_id: str, correct_edit_p
     if submit_index is None:
         return
     old_submit = trace.pop(submit_index)
+    next_id = _next_step_number(trace)
+    recover_step_id = f"a{next_id:03d}"
+    recover_test_step_id = f"a{next_id + 1:03d}"
+    recover_submit_step_id = f"a{next_id + 2:03d}"
     trace.append({
-        "step_id": "a011",
+        "step_id": recover_step_id,
         "tool_name": "write_file",
         "args": {
             "path": correct_edit_path,
@@ -203,7 +207,7 @@ def _add_wrong_file_recovery(trace: list[dict], fix_step_id: str, correct_edit_p
         "tokens": 410,
     })
     trace.append({
-        "step_id": "a012",
+        "step_id": recover_test_step_id,
         "tool_name": "run_tests",
         "args": {"command": "pytest -q"},
         "result": {
@@ -215,6 +219,15 @@ def _add_wrong_file_recovery(trace: list[dict], fix_step_id: str, correct_edit_p
         "summary": "Reran tests after the recovery patch and they passed.",
         "tokens": 170,
     })
-    old_submit["step_id"] = "a013"
+    old_submit["step_id"] = recover_submit_step_id
     old_submit["summary"] = "Submitted after recovering from the wrong-file edit and rerunning tests."
     trace.append(old_submit)
+
+
+def _next_step_number(trace: list[dict]) -> int:
+    nums = []
+    for step in trace:
+        step_id = str(step.get("step_id", ""))
+        if step_id.startswith("a") and step_id[1:].isdigit():
+            nums.append(int(step_id[1:]))
+    return (max(nums) + 1) if nums else 1
