@@ -38,17 +38,84 @@ def _signed_tokens(delta: int) -> Text:
     return Text(f"{sign}{delta}", style=style)
 
 
+_PENDING = Text("— pending", style=_DIM)
+
+
+def _is_pending(trained: model_mod.Aggregate) -> bool:
+    """No trained records yet (e.g. base-only real run) — don't fake a 0% column."""
+    return trained.n == 0
+
+
 def summary_table(base: model_mod.Aggregate, trained: model_mod.Aggregate) -> Table:
-    """The money-shot: base vs trained vs Δ across every metric."""
+    """The money-shot: base vs trained vs Δ across every metric.
+
+    When the trained side is absent (n == 0) the Trained column reads "pending"
+    instead of a misleading 0% with a negative Δ.
+    """
+    pending = _is_pending(trained)
     d = model_mod.delta(base, trained)
     t = Table(title="Base vs Trained Auditor  (held-out traces)", box=box.ROUNDED, title_style="bold")
     t.add_column("Metric"); t.add_column("Base", justify="right")
     t.add_column("Trained", justify="right"); t.add_column("Δ", justify="right")
-    t.add_row("Localization accuracy", _pct(base.localization_accuracy), _pct(trained.localization_accuracy), _signed(d.localization_accuracy))
-    t.add_row("Failure-type accuracy", _pct(base.failure_type_accuracy), _pct(trained.failure_type_accuracy), _signed(d.failure_type_accuracy))
-    t.add_row("Mean explanation score", f"{base.mean_explanation_score:.2f}", f"{trained.mean_explanation_score:.2f}", _signed(d.mean_explanation_score))
-    t.add_row("Mean reward", f"{base.mean_reward:.2f}", f"{trained.mean_reward:.2f}", _signed(d.mean_reward))
-    t.add_row("Auditor tokens (total)", str(base.total_auditor_tokens), str(trained.total_auditor_tokens), _signed_tokens(d.total_auditor_tokens))
+
+    def row(label, base_str, trained_str, delta_cell):
+        t.add_row(label, base_str, _PENDING if pending else trained_str, _PENDING if pending else delta_cell)
+
+    row("Localization accuracy", _pct(base.localization_accuracy), _pct(trained.localization_accuracy), _signed(d.localization_accuracy))
+    row("Failure-type accuracy", _pct(base.failure_type_accuracy), _pct(trained.failure_type_accuracy), _signed(d.failure_type_accuracy))
+    row("Mean explanation score", f"{base.mean_explanation_score:.2f}", f"{trained.mean_explanation_score:.2f}", _signed(d.mean_explanation_score))
+    row("Mean reward", f"{base.mean_reward:.2f}", f"{trained.mean_reward:.2f}", _signed(d.mean_reward))
+    row("Auditor tokens (total)", str(base.total_auditor_tokens), str(trained.total_auditor_tokens), _signed_tokens(d.total_auditor_tokens))
+    return t
+
+
+def headline(base: model_mod.Aggregate, trained: model_mod.Aggregate, fault_rows: list) -> Panel:
+    """One-line takeaway banner — the conclusion before the detail.
+
+    Honest framing: states measured localization/reward/auditor-token numbers. The
+    "catches every planted fault" phrasing is only used when trained localization on
+    BUGGY traces is actually 100%.
+    """
+    if _is_pending(trained):
+        line1 = Text("Base auditor baseline — trained run pending", style="bold")
+        line2 = Text(
+            f"Localization {base.localization_accuracy:.0%} · reward {base.mean_reward:.2f} · "
+            f"auditor tokens {base.total_auditor_tokens}",
+            style=_DIM,
+        )
+        return Panel(Group(line1, line2), box=box.HEAVY, border_style=_DIM)
+
+    buggy = [r for r in fault_rows if r.fault_type != "clean"]
+    bn = sum(r.n for r in buggy)
+    trained_buggy = sum(r.trained_localization * r.n for r in buggy) / bn if bn else trained.localization_accuracy
+    saving = (base.total_auditor_tokens - trained.total_auditor_tokens) / base.total_auditor_tokens if base.total_auditor_tokens else 0.0
+    verdict = "catches every planted fault" if trained_buggy >= 0.999 else f"localizes {trained_buggy:.0%} of planted faults"
+
+    line1 = Text("Trained auditor ", style="bold") + Text(verdict, style=_GOOD)
+    if saving > 0:
+        line1 += Text(f" — and audits {saving:.0%} cheaper.", style="bold")
+    d = trained.localization_accuracy - base.localization_accuracy
+    line2 = Text(
+        f"Localization {base.localization_accuracy:.0%}→{trained.localization_accuracy:.0%} "
+        f"({'+' if d >= 0 else ''}{d * 100:.0f}pp) · reward {base.mean_reward:.2f}→{trained.mean_reward:.2f} · "
+        f"auditor tokens −{saving:.0%}",
+        style=_DIM,
+    )
+    return Panel(Group(line1, line2), box=box.HEAVY, border_style=_GOOD)
+
+
+def per_fault_table(fault_rows: list) -> Table | None:
+    """Localization accuracy broken out by ground-truth fault type (base vs trained).
+
+    Returns None when no fault rows are available (no traces) so the caller can omit it.
+    """
+    if not fault_rows:
+        return None
+    t = Table(title="Localization by fault type", box=box.ROUNDED, title_style="bold")
+    t.add_column("Fault type"); t.add_column("n", justify="right")
+    t.add_column("Base", justify="right"); t.add_column("Trained", justify="right"); t.add_column("Δ", justify="right")
+    for r in fault_rows:
+        t.add_row(r.fault_type, str(r.n), _pct(r.base_localization), _pct(r.trained_localization), _signed(r.delta))
     return t
 
 
@@ -58,14 +125,19 @@ def token_chart(base: model_mod.Aggregate, trained: model_mod.Aggregate) -> Pane
     NOT framed as 'tokens saved' — there is no live-loop saving in the floor; the
     dramatic framing is reserved for the Design-Y gate head if it ever lands.
     """
+    pending = _is_pending(trained)
     width = 34
     peak = max(base.total_auditor_tokens, trained.total_auditor_tokens, 1)
     rows = []
     for label, agg, style in (("base", base, "#EF4444"), ("trained", trained, "#22C55E")):
+        if label == "trained" and pending:
+            rows.append(Text(f"{label:>8}  ") + _PENDING)
+            continue
         filled = round(width * agg.total_auditor_tokens / peak)
         bar = Text("█" * filled, style=style) + Text("░" * (width - filled), style=_DIM)
         rows.append(Text(f"{label:>8}  ") + bar + Text(f"  {agg.total_auditor_tokens}"))
-    audited = trained.total_trace_tokens  # same traces both models; report once
+    # Same traces audited by both models; report the cost basis once (base if pending).
+    audited = base.total_trace_tokens if pending else trained.total_trace_tokens
     rows.append(Text(f"\nTrace tokens audited (held-out set): {audited}", style=_DIM))
     return Panel(Group(*rows), title="Auditor token cost  (lower = cheaper audit)", box=box.ROUNDED)
 
@@ -136,16 +208,32 @@ def verdict_panel(trace: dict, verdicts: dict) -> Panel | None:
     return Panel(t, title=f"Verdict drill-down · {trace['run_id']}", box=box.ROUNDED)
 
 
-def dashboard(eval_records: list[dict], verdicts: dict, traces: dict) -> RenderableType:
-    """Assemble the full static report as one renderable."""
+def _header(source_label: str | None) -> Panel:
+    title = Text("LOOPHOLE · Loop-Auditor Dashboard", style="bold magenta")
+    body = title if not source_label else Group(title, Text(source_label, style=_DIM))
+    return Panel(body, box=box.DOUBLE)
+
+
+def dashboard(eval_records: list[dict], verdicts: dict, traces: dict, source_label: str | None = None) -> RenderableType:
+    """Assemble the full static report as one renderable.
+
+    Money-shot first: header → headline takeaway → summary → per-fault breakdown →
+    token cost, then the supporting per-trace replay/verdict detail. ``source_label``
+    is an optional provenance subtitle (e.g. illustrative-fixtures vs real eval).
+    """
     by = model_mod.split_by_model(eval_records)
     base = model_mod.aggregate(by.get("base", []))
     trained = model_mod.aggregate(by.get("trained", []))
+    fault_rows = model_mod.per_fault_breakdown(eval_records, traces)
     blocks: list[RenderableType] = [
-        Panel(Text("LOOPHOLE · Loop-Auditor Dashboard", style="bold magenta"), box=box.DOUBLE),
+        _header(source_label),
+        headline(base, trained, fault_rows),
         summary_table(base, trained),
-        token_chart(base, trained),
     ]
+    pf = per_fault_table(fault_rows)
+    if pf is not None:
+        blocks.append(pf)
+    blocks.append(token_chart(base, trained))
     for run_id in sorted(traces):
         trace = traces[run_id]
         blocks.append(trace_replay(trace, verdicts))

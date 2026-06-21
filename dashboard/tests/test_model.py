@@ -32,6 +32,30 @@ def test_aggregate_empty_is_safe():
     assert agg.total_auditor_tokens == 0
 
 
+def test_per_fault_breakdown_groups_by_fault_type():
+    traces = {
+        "r1": {"run_id": "r1", "planted_failure": {"step_id": "a1", "failure_type": "routing"}},
+        "r2": {"run_id": "r2", "planted_failure": {"step_id": "a2", "failure_type": "routing"}},
+        "c1": {"run_id": "c1", "planted_failure": None},
+    }
+    records = [
+        _rec("base", False, False, 0.0, 0.0, 1, 1, run_id="r1"),
+        _rec("base", True, True, 0.0, 1.0, 1, 1, run_id="r2"),
+        _rec("trained", True, True, 0.8, 1.7, 1, 1, run_id="r1"),
+        _rec("trained", True, True, 0.8, 1.7, 1, 1, run_id="r2"),
+        _rec("base", True, True, 0.0, 1.0, 1, 1, run_id="c1"),
+        _rec("trained", True, True, 0.0, 1.0, 1, 1, run_id="c1"),
+    ]
+    rows = {r.fault_type: r for r in model.per_fault_breakdown(records, traces)}
+    assert rows["routing"].n == 2
+    assert rows["routing"].base_localization == 0.5      # 1 of 2
+    assert rows["routing"].trained_localization == 1.0   # 2 of 2
+    assert math.isclose(rows["routing"].delta, 0.5)
+    assert rows["clean"].n == 1
+    # No traces -> no breakdown (dashboard omits the table).
+    assert model.per_fault_breakdown(records, {}) == []
+
+
 def test_aggregate_computes_means_and_totals():
     recs = [
         _rec("base", True, True, 0.5, 1.8, 100, 40, run_id="a"),

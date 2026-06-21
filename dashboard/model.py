@@ -88,3 +88,55 @@ def planted_step_id(trace: dict) -> str | None:
     if not pf:
         return None
     return pf.get("step_id")
+
+
+def fault_type(trace: dict) -> str:
+    """The trace's ground-truth fault type, or 'clean' when no fault is planted."""
+    pf = trace.get("planted_failure")
+    return pf.get("failure_type", "clean") if pf else "clean"
+
+
+@dataclass(frozen=True)
+class FaultRow:
+    """Per-fault-type base-vs-trained localization rollup (immutable)."""
+
+    fault_type: str
+    n: int                       # distinct traces of this fault type
+    base_localization: float
+    trained_localization: float
+
+    @property
+    def delta(self) -> float:
+        return self.trained_localization - self.base_localization
+
+
+# 'clean' sorts last; faults keep a stable, demo-legible order.
+_FAULT_ORDER = ("routing", "resource_misuse", "tool_misuse", "wrong_file_edit", "safety", "clean")
+
+
+def per_fault_breakdown(records: list[dict], traces: dict[str, dict]) -> list[FaultRow]:
+    """Group localization accuracy by ground-truth fault type, base vs trained.
+
+    Needs `traces` to map each record's run_id to its fault type; returns [] when
+    no traces are available (the dashboard then omits the per-fault table). A
+    record whose run_id has no trace is skipped (its fault type is unknown).
+    """
+    # fault_type -> model -> [correct_bools]
+    buckets: dict[str, dict[str, list[bool]]] = {}
+    for r in records:
+        trace = traces.get(r["run_id"])
+        if trace is None:
+            continue
+        ft = fault_type(trace)
+        buckets.setdefault(ft, {}).setdefault(r["model"], []).append(bool(r["localization_correct"]))
+
+    def _acc(hits: list[bool]) -> float:
+        return sum(hits) / len(hits) if hits else 0.0
+
+    rows: list[FaultRow] = []
+    for ft in sorted(buckets, key=lambda f: (_FAULT_ORDER.index(f) if f in _FAULT_ORDER else len(_FAULT_ORDER), f)):
+        per_model = buckets[ft]
+        base, trained = per_model.get("base", []), per_model.get("trained", [])
+        n = max(len(base), len(trained))
+        rows.append(FaultRow(ft, n, _acc(base), _acc(trained)))
+    return rows

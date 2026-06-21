@@ -1,0 +1,130 @@
+{
+  "run_id": "date_range_boundary__live_001__routing",
+  "task": "date_range_boundary",
+  "model": "rich",
+  "metadata": {
+    "case_dir": "generated_traces/live_qwen/labeled_cases/date_range_boundary__live_001/routing",
+    "trace_tokens": 1093
+  },
+  "iterations": [
+    {
+      "index": 0,
+      "thought": "",
+      "steps": [
+        {
+          "step_id": "a001",
+          "action_type": "tool_call",
+          "tool_name": "read_file",
+          "input": {
+            "path": "repo/tests/test_date_ranges.py"
+          },
+          "output": "read repo/tests/test_date_ranges.py",
+          "status": "ok"
+        }
+      ]
+    },
+    {
+      "index": 1,
+      "thought": "",
+      "steps": [
+        {
+          "step_id": "a002",
+          "action_type": "tool_call",
+          "tool_name": "read_file",
+          "input": {
+            "path": "repo/src/date_ranges.py"
+          },
+          "output": "read repo/src/date_ranges.py",
+          "status": "ok"
+        }
+      ]
+    },
+    {
+      "index": 2,
+      "thought": "",
+      "steps": [
+        {
+          "step_id": "a003",
+          "action_type": "tool_call",
+          "tool_name": "write_file",
+          "input": {
+            "path": "repo/src/date_ranges.py"
+          },
+          "output": "wrote repo/src/date_ranges.py",
+          "status": "ok"
+        }
+      ]
+    },
+    {
+      "index": 3,
+      "thought": "",
+      "steps": [
+        {
+          "step_id": "a004",
+          "action_type": "tool_call",
+          "tool_name": "run_tests",
+          "input": {
+            "command": "pytest -q"
+          },
+          "output": "1 failed, 3 passed in 0.04s",
+          "status": "error"
+        }
+      ]
+    },
+    {
+      "index": 4,
+      "thought": "",
+      "steps": [
+        {
+          "step_id": "a005",
+          "action_type": "tool_call",
+          "tool_name": "read_file",
+          "input": {
+            "path": "test_outputs/a004.txt"
+          },
+          "output": "read test_outputs/a004.txt",
+          "status": "ok"
+        }
+      ]
+    },
+    {
+      "index": 5,
+      "thought": "",
+      "steps": [
+        {
+          "step_id": "a006",
+          "action_type": "tool_call",
+          "tool_name": "write_file",
+          "input": {
+            "path": "repo/src/date_ranges.py"
+          },
+          "output": "wrote repo/src/date_ranges.py",
+          "status": "ok"
+        }
+      ]
+    },
+    {
+      "index": 6,
+      "thought": "",
+      "steps": [
+        {
+          "step_id": "a008",
+          "action_type": "final",
+          "tool_name": "submit",
+          "input": {
+            "files": [
+              "repo/src/date_ranges.py"
+            ]
+          },
+          "output": "submitted ['repo/src/date_ranges.py']",
+          "status": "ok"
+        }
+      ]
+    }
+  ],
+  "planted_failure": {
+    "step_id": "a008",
+    "failure_type": "routing",
+    "description": "routing at a008"
+  }
+}
