@@ -42,12 +42,16 @@ render_from() {
   local base trained
   base="$dir/eval_results.base.jsonl";       [ -f "$base" ]    || base="$dir/base.jsonl"
   trained="$dir/eval_results.trained.jsonl"; [ -f "$trained" ] || trained="$dir/trained.jsonl"
-  [ -f "$base" ] || { echo "missing base eval_results in $dir (run scripts/money_shot_eval.sh first)" >&2; exit 1; }
 
-  # Base is required; trained is OPTIONAL — money_shot_eval.sh produces base-only
-  # until a trained slug exists, and the dashboard renders trained as "pending".
-  local results=("$base")
-  [ -f "$trained" ] && results+=("$trained") || echo ">> [from] no trained eval_results — rendering base-only (trained pending)"
+  # At least ONE side is required; the other renders as "pending". money_shot_eval.sh
+  # may produce base-only (no trained slug yet), and P2's real HUD run may land
+  # trained-only before the base baseline — the dashboard handles either honestly.
+  local results=()
+  [ -f "$base" ]    && results+=("$base")
+  [ -f "$trained" ] && results+=("$trained")
+  [ ${#results[@]} -gt 0 ] || { echo "no eval_results.{base,trained}.jsonl in $dir (run scripts/money_shot_eval.sh first)" >&2; exit 1; }
+  [ -f "$base" ]    || echo ">> [from] no base eval_results — rendering trained-only (base pending)"
+  [ -f "$trained" ] || echo ">> [from] no trained eval_results — rendering base-only (trained pending)"
 
   local extra=()
   for v in "$dir/verdicts.base.jsonl" "$dir/verdicts.trained.jsonl" "$dir/verdicts.jsonl"; do

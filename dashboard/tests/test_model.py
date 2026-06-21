@@ -52,8 +52,24 @@ def test_per_fault_breakdown_groups_by_fault_type():
     assert rows["routing"].trained_localization == 1.0   # 2 of 2
     assert math.isclose(rows["routing"].delta, 0.5)
     assert rows["clean"].n == 1
-    # No traces -> no breakdown (dashboard omits the table).
-    assert model.per_fault_breakdown(records, {}) == []
+    assert rows["routing"].base_n == 2 and rows["routing"].trained_n == 2
+
+
+def test_per_fault_breakdown_uses_run_id_when_no_traces():
+    # Real HUD eval ships no traces — fault type derives from the <task>__<fault> run_id.
+    records = [
+        _rec("trained", True, True, 0.5, 1.5, 0, 100, run_id="inventory_total__routing"),
+        _rec("trained", False, False, 0.0, 0.0, 0, 100, run_id="inventory_total__wrong_file_edit"),
+        _rec("trained", True, True, 0.0, 1.0, 0, 100, run_id="ini_parser__clean"),
+    ]
+    rows = {r.fault_type: r for r in model.per_fault_breakdown(records, {})}
+    assert set(rows) == {"routing", "wrong_file_edit", "clean"}
+    assert rows["routing"].trained_localization == 1.0
+    assert rows["wrong_file_edit"].trained_localization == 0.0
+    # base side absent -> base_n == 0 (the dashboard renders it as "pending").
+    assert rows["routing"].base_n == 0 and rows["routing"].trained_n == 1
+    # A run_id without a known <fault> suffix and no trace is skipped.
+    assert model.per_fault_breakdown([_rec("trained", True, True, 0, 1, 0, 1, run_id="weird_id")], {}) == []
 
 
 def test_aggregate_computes_means_and_totals():

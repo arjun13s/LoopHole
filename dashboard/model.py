@@ -104,6 +104,8 @@ class FaultRow:
     n: int                       # distinct traces of this fault type
     base_localization: float
     trained_localization: float
+    base_n: int = 0              # base records for this fault (0 => base side pending)
+    trained_n: int = 0           # trained records for this fault (0 => trained pending)
 
     @property
     def delta(self) -> float:
@@ -112,22 +114,36 @@ class FaultRow:
 
 # 'clean' sorts last; faults keep a stable, demo-legible order.
 _FAULT_ORDER = ("routing", "resource_misuse", "tool_misuse", "wrong_file_edit", "safety", "clean")
+_KNOWN_FAULTS = frozenset(_FAULT_ORDER)
+
+
+def _fault_type_for(run_id: str, trace: dict | None) -> str | None:
+    """Fault type for a record: the trace's ground truth when present, else the
+    `<task>__<fault>` run_id convention (so the real HUD eval — which ships no
+    traces — still groups). Returns None when neither yields a known fault type."""
+    if trace is not None:
+        return fault_type(trace)
+    if "__" in run_id:
+        suffix = run_id.rsplit("__", 1)[1]
+        if suffix in _KNOWN_FAULTS:
+            return suffix
+    return None
 
 
 def per_fault_breakdown(records: list[dict], traces: dict[str, dict]) -> list[FaultRow]:
     """Group localization accuracy by ground-truth fault type, base vs trained.
 
-    Needs `traces` to map each record's run_id to its fault type; returns [] when
-    no traces are available (the dashboard then omits the per-fault table). A
-    record whose run_id has no trace is skipped (its fault type is unknown).
+    Fault type per record comes from its trace's planted_failure when available,
+    else the `<task>__<fault>` run_id convention (real HUD eval ships no traces).
+    Records whose fault type can't be determined are skipped; returns [] when none
+    can be grouped (the dashboard then omits the per-fault table).
     """
     # fault_type -> model -> [correct_bools]
     buckets: dict[str, dict[str, list[bool]]] = {}
     for r in records:
-        trace = traces.get(r["run_id"])
-        if trace is None:
+        ft = _fault_type_for(r["run_id"], traces.get(r["run_id"]))
+        if ft is None:
             continue
-        ft = fault_type(trace)
         buckets.setdefault(ft, {}).setdefault(r["model"], []).append(bool(r["localization_correct"]))
 
     def _acc(hits: list[bool]) -> float:
@@ -138,5 +154,5 @@ def per_fault_breakdown(records: list[dict], traces: dict[str, dict]) -> list[Fa
         per_model = buckets[ft]
         base, trained = per_model.get("base", []), per_model.get("trained", [])
         n = max(len(base), len(trained))
-        rows.append(FaultRow(ft, n, _acc(base), _acc(trained)))
+        rows.append(FaultRow(ft, n, _acc(base), _acc(trained), base_n=len(base), trained_n=len(trained)))
     return rows
