@@ -65,7 +65,9 @@ async def _run(runtime=None) -> None:
     if max_tasks > 0:
         audit_ids = audit_ids[:max_tasks]
     taskset = Taskset(name="loop-auditor-audit", tasks=env_mod.build_taskset(audit_ids))
-    auditor = agent_mod.build_auditor_agent(config.MODEL)
+    # trainable=True -> rollout records token ids + logprobs (AgentStep.sample),
+    # which TrainingClient.forward_backward needs (else "no trainable turns").
+    auditor = agent_mod.build_auditor_agent(config.MODEL, trainable=True)
     trainer = TrainingClient(config.MODEL)
 
     # Grouped rollouts; each scored by the @env.template deterministic reward.
