@@ -33,6 +33,25 @@ SCHEMAS_DIR = _resolve_schemas_dir()
 # Person 3's dashboard reads this file. Agree the path with Person 3 at H0.
 EVAL_OUTPUT = PKG_DIR / "eval_results.jsonl"
 
+
+def _resolve_taskset_dir() -> Path:
+    """Locate Person 1's taskset/ (train.jsonl + heldout.jsonl): env override,
+    then repo-root (local dev), then a vendored copy beside the env (deploy)."""
+    override = os.environ.get("LOOP_AUDITOR_TASKSET_DIR")
+    if override:
+        return Path(override)
+    for candidate in (REPO_ROOT / "taskset", PKG_DIR / "taskset"):
+        if (candidate / "heldout.jsonl").exists():
+            return candidate
+    return REPO_ROOT / "taskset"
+
+
+TASKSET_DIR = _resolve_taskset_dir()
+# Which traces the env serves as tasks. Default "fixtures" (the 3 local sanity
+# traces, keeps tests stable); "train"/"heldout"/"all" load Person 1's dataset;
+# any other value is treated as a path to a .jsonl file or a dir of *.json.
+DATASET = os.environ.get("LOOP_AUDITOR_DATASET", "fixtures")
+
 # --- model (single source of truth; chosen at H0) ----------------------------
 # NOTE: HUD-native training may require a forked slug (`hud models fork ... --name ...`);
 # set LOOP_AUDITOR_MODEL to that slug once forked.

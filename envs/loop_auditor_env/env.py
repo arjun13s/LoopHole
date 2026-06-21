@@ -67,6 +67,31 @@ def load_fixture_traces(fixtures_dir=None) -> "list[dict]":
     return [json.loads(p.read_text()) for p in sorted(d.glob("*.json"))]
 
 
+def load_jsonl_traces(path) -> "list[dict]":
+    """Load one trace per line from a .jsonl file (Person 1's dataset format)."""
+    return [json.loads(line) for line in Path(path).read_text().splitlines() if line.strip()]
+
+
+def select_traces() -> "list[dict]":
+    """Pick the trace source from config.DATASET.
+
+    "fixtures" (default) -> the 3 local sanity traces; "train"/"heldout" ->
+    taskset/<split>.jsonl; "all" -> train+heldout; otherwise treat config.DATASET
+    as a path to a .jsonl file or a directory of *.json traces.
+    """
+    ds = config.DATASET
+    if ds == "fixtures":
+        return load_fixture_traces()
+    if ds in ("train", "heldout"):
+        return load_jsonl_traces(config.TASKSET_DIR / f"{ds}.jsonl")
+    if ds == "all":
+        return load_jsonl_traces(config.TASKSET_DIR / "train.jsonl") + load_jsonl_traces(
+            config.TASKSET_DIR / "heldout.jsonl"
+        )
+    p = Path(ds)
+    return load_fixture_traces(p) if p.is_dir() else load_jsonl_traces(p)
+
+
 def strip_ground_truth(trace: dict) -> "tuple[dict, dict | None]":
     """Return (auditor_view_without_planted_failure, ground_truth_or_None).
 
@@ -108,8 +133,8 @@ def score_verdict(raw_verdict, trace_view: dict, ground_truth) -> float:
 # --- the environment ---------------------------------------------------------
 env = Environment(name="loop-auditor")
 
-# Full traces keyed by run_id (incl. planted_failure).
-_TRACES = {t["run_id"]: t for t in load_fixture_traces()}
+# Full traces keyed by run_id (incl. planted_failure). Source per config.DATASET.
+_TRACES = {t["run_id"]: t for t in select_traces()}
 _SCENARIOS = {s.id: s for s in scenarios.enumerate_scenarios(list(_TRACES.values()))}
 
 # Per-run state (one container per eval -> module global is safe).
