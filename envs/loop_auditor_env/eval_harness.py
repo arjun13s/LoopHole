@@ -16,6 +16,7 @@ capture the verdict + auditor token usage), and the real held-out split source
 from __future__ import annotations
 
 import json
+import os
 import statistics
 from pathlib import Path
 
@@ -55,11 +56,14 @@ def build_eval_record(
     """Build one §1.3 eval-result record (pure). Mirrors env.score_verdict logic."""
     v = verdict_mod.validate_verdict(verdict_mod.parse_verdict(raw_verdict))
     if ground_truth is None:
-        localization_correct = v["predicted_step_id"] == config.NO_FAULT_STEP_ID
-        failure_type_correct = v["failure_type"] == config.NO_FAULT_TYPE
+        localization_correct = v.get("fault_present") is False
+        failure_type_correct = v.get("failure_type") is None
         explanation_score = 0.0
     else:
-        localization_correct = v["predicted_step_id"] == ground_truth["step_id"]
+        localization_correct = (
+            v.get("fault_present") is True
+            and v["predicted_step_id"] == ground_truth["step_id"]
+        )
         failure_type_correct = v["failure_type"] == ground_truth["failure_type"]
         explanation_score = (
             judge.score_explanation(trace_view, ground_truth, v.get("explanation", ""))
@@ -136,5 +140,22 @@ def run_eval(split: str = "heldout", model_tag: str = "base") -> dict:
     return aggregate(records)
 
 
+def main() -> None:
+    import argparse
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--split", default="heldout")
+    parser.add_argument("--model-tag", default="base", choices=("base", "trained"))
+    parser.add_argument(
+        "--mock-judge",
+        type=float,
+        help="Use a fixed explanation score in [0,1] instead of the live/stub judge.",
+    )
+    args = parser.parse_args()
+    if args.mock_judge is not None:
+        os.environ["LOOP_AUDITOR_MOCK_JUDGE_SCORE"] = str(args.mock_judge)
+    print(run_eval(split=args.split, model_tag=args.model_tag))
+
+
 if __name__ == "__main__":
-    print(run_eval())
+    main()

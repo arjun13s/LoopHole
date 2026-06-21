@@ -29,15 +29,17 @@ def compute_reward(
 
     Clean trace (``ground_truth is None``)::
 
-        reward = 1.0 if verdict["predicted_step_id"] == config.NO_FAULT_STEP_ID else 0.0
+        reward = 1.0 if verdict["fault_present"] is False else 0.0
     """
     if not isinstance(verdict, dict):
         raise TypeError("verdict must be a dict")
 
     if ground_truth is None:
-        return 1.0 if verdict["predicted_step_id"] == config.NO_FAULT_STEP_ID else 0.0
+        return 1.0 if verdict.get("fault_present") is False else 0.0
     if not isinstance(ground_truth, dict):
         raise TypeError("ground_truth must be a dict or None")
+    if verdict.get("fault_present") is False:
+        return 0.0
 
     localization_correct = verdict["predicted_step_id"] == ground_truth["step_id"]
     failure_type_correct = verdict["failure_type"] == ground_truth["failure_type"]

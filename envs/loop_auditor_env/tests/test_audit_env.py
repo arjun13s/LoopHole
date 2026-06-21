@@ -32,6 +32,7 @@ class TestAuditTemplate:
         assert "planted_failure" not in prompt  # ground truth never leaks
         answer = json.dumps(
             {
+                "fault_present": True,
                 "predicted_step_id": gt["step_id"],
                 "failure_type": gt["failure_type"],
                 "explanation": f"{gt['failure_type']} at {gt['step_id']}: {gt['description']}",
@@ -46,7 +47,13 @@ class TestAuditTemplate:
         gen = audit_trace.func(scenario_id=f"audit__{rid}")
         await gen.asend(None)
         answer = json.dumps(
-            {"predicted_step_id": "NOPE", "failure_type": "safety", "explanation": "x", "proposed_fix": "y"}
+            {
+                "fault_present": True,
+                "predicted_step_id": "NOPE",
+                "failure_type": "safety",
+                "explanation": "x",
+                "proposed_fix": "y",
+            }
         )
         assert await gen.asend(answer) == 0.0
 
@@ -56,10 +63,11 @@ class TestAuditTemplate:
         await gen.asend(None)
         answer = json.dumps(
             {
+                "fault_present": False,
                 "predicted_step_id": config.NO_FAULT_STEP_ID,
                 "failure_type": config.NO_FAULT_TYPE,
                 "explanation": "clean",
-                "proposed_fix": "n/a",
+                "proposed_fix": None,
             }
         )
         assert await gen.asend(answer) == 1.0

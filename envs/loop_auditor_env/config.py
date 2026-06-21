@@ -48,8 +48,8 @@ JUDGE_MODEL = os.environ.get("LOOP_AUDITOR_JUDGE_MODEL", "claude-sonnet-4-6")
 EXPLANATION_SCORE_THRESHOLD = float(os.environ.get("LOOP_AUDITOR_EXPL_THRESHOLD", "0.0"))
 
 # --- contract constants ------------------------------------------------------
-NO_FAULT_STEP_ID = "NONE"  # verdict.predicted_step_id sentinel for a clean trace
-NO_FAULT_TYPE = "none"     # verdict.failure_type value for a clean trace
+NO_FAULT_STEP_ID = None  # verdict.predicted_step_id value for a clean trace
+NO_FAULT_TYPE = None     # verdict.failure_type value for a clean trace
 FAILURE_TYPES = ("resource_misuse", "tool_misuse", "routing", "safety")
 
 # --- reward weights (mirror schemas/reward_spec.json §1.4) -------------------
