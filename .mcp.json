@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "loop-auditor": {
+      "type": "http",
+      "url": "https://mcp.beta.hud.ai/v3/mcp",
+      "headers": {
+        "Authorization": "Bearer ${HUD_API_KEY}",
+        "Environment-Name": "loop-auditor"
+      }
+    }
+  }
+}

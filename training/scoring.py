@@ -32,11 +32,18 @@ def strip_ground_truth(trace: dict) -> tuple[dict, dict | None]:
 
 
 def count_trace_tokens(trace: dict) -> int:
-    """Sum ActionSpan.tokens across the trace (feeds eval_result.trace_tokens)."""
+    """Sum ActionSpan.tokens across the trace (feeds eval_result.trace_tokens).
+
+    Falls back to ``metadata.trace_tokens`` when per-step tokens are absent: the
+    normalized live/rich traces strip per-step tokens from the auditor view (a
+    per-step count leaks the fault), but the honest total is preserved in metadata.
+    """
     total = 0
     for it in trace.get("iterations", []) or []:
         for s in it.get("steps", []) or []:
             total += int(s.get("tokens", 0) or 0)
+    if total == 0:
+        return int((trace.get("metadata") or {}).get("trace_tokens", 0) or 0)
     return total
 
 
