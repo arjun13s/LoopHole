@@ -59,9 +59,19 @@ the served MCP capability. No model/gateway/key needed.
 live judge; otherwise (or with `LOOP_AUDITOR_JUDGE_STUB=1`) it uses a deterministic offline stub so the
 pipeline runs keyless.
 
+## GRPO training (H4)
+`train.py` + `agent.py` are written against **verified 0.6.x signatures** (`Taskset.run`,
+`Job.runs[*].reward`, `TrainingClient.step`, `create_agent`). To take the H4 step:
+```bash
+hud models fork <base> --name loop-auditor   # a trainable gateway slug
+export LOOP_AUDITOR_MODEL=loop-auditor
+python -m envs.loop_auditor_env.train         # grouped rollouts -> assert spread>0 -> one trainer.step
+```
+First real run still needs to confirm: the `runtime` choice and the GRPO `loss_fn`
+(`TrainingClient.available_losses()`; default `importance_sampling`).
+
 ## Still TODO
-- **GRPO training** (`train.py`) + **eval rollout** (`eval_harness._run_auditor_once`) use the HUD
-  training/run API — still tagged `!!! VERIFY` (confirm `Job`/`TrainingClient` / single-trace rollout
-  against 0.6.x). `agent.py`'s `hud.agents` symbols likewise.
+- **`eval_harness._run_auditor_once`**: capture the per-trace verdict + auditor token usage from a HUD
+  rollout (the pure record/aggregation helpers are done and tested).
 - **Deploy** (`hud deploy`): needs a `Dockerfile.hud` that copies all modules + `fixtures/` + the
-  `schemas/` (currently read from repo root via `config.SCHEMAS_DIR`). Local eval does not need this.
+  `schemas/` (read from repo root via `config.SCHEMAS_DIR`). Local eval/train do not need this.

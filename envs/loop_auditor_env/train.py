@@ -1,16 +1,22 @@
 """GRPO rollout loop in HUD -- the H4 CORE DE-RISK.
 
-OWNER: Claude. HUD-native path (TrainingClient routes the optimizer to the
-provider backend):
-    Job.start(MODEL, group=GROUP_SIZE) -> taskset.run(agent, job=...) over the
-    fixtures -> trainer.step(batch, group_size=GROUP_SIZE, learning_rate=LR).
+Written against verified hud-python 0.6.x signatures:
+  Taskset.run(agent, *, group=..., runtime=...) -> Job          (async)
+  Job.runs[i].reward                                            (per-rollout reward)
+  TrainingClient(model).step(runs, *, learning_rate=, group_size=, loss_fn=...)  (async)
+
+A grouped rollout scores each trajectory with our @env.template reward
+(PLAN.md §1.4); TrainingClient.step turns the within-group reward spread into a
+GRPO-style update (group_size -> group-relative advantages).
 
 H4 gate: a group of rollouts is sampled, rewards are NON-DEGENERATE (spread > 0),
-one trainer.step() returns without error, and the checkpoint ref advances.
+and one trainer.step() returns without error.
 
-!!! VERIFY @ Step 0: every hud.* symbol + whether the calls are async. The
-research showed `await Job.start(...)`, `await taskset.run(...)`,
-`await trainer.step(...)`, so this is written async.
+Run:  python -m envs.loop_auditor_env.train
+Needs: HUD_API_KEY, LOOP_AUDITOR_MODEL set to a trainable gateway slug
+(`hud models fork ...`), and ANTHROPIC_API_KEY for the live judge (else stubbed).
+Still to confirm on first real run: the runtime choice and the GRPO loss_fn name
+(`TrainingClient.available_losses()`; default 'importance_sampling').
 """
 
 from __future__ import annotations
@@ -27,40 +33,27 @@ except ImportError:
     import env as env_mod
 
 
-def _reward_of(run) -> float:
-    """Pull the scalar reward off a HUD run. VERIFY the real field path."""
-    grade = getattr(run, "grade", None)
-    if grade is not None and hasattr(grade, "reward"):
-        return float(grade.reward)
-    if isinstance(run, dict):
-        return float(run.get("reward", run.get("grade", {}).get("reward", 0.0)))
-    return float(getattr(run, "reward", 0.0))
-
-
 async def _run() -> None:
+    from hud import LocalRuntime, Taskset, TrainingClient
+
     auditor = agent_mod.build_auditor_agent(config.MODEL)
-    taskset = env_mod.build_taskset()  # VERIFY taskset shape
+    taskset = Taskset(name="loop-auditor", tasks=env_mod.build_taskset())
+    trainer = TrainingClient(config.MODEL)
 
-    from hud import Job, TrainingClient  # VERIFY names/locations
-
-    trainer = TrainingClient(config.MODEL)  # VERIFY
-    session = await Job.start(config.MODEL, group=config.GROUP_SIZE)  # VERIFY
-
-    start = len(session.runs)
-    await taskset.run(auditor, job=session)  # VERIFY run signature
-    batch = session.runs[start:]
-
-    rewards = [_reward_of(r) for r in batch]
+    # Grouped rollouts; each scored by the @env.template reward.
+    job = await taskset.run(auditor, group=config.GROUP_SIZE, runtime=LocalRuntime())
+    rewards = [r.reward for r in job.runs]
     spread = (max(rewards) - min(rewards)) if rewards else 0.0
-    print(f"[H4] group_size={len(batch)} rewards={rewards} spread={spread:.3f}")
+    print(f"[H4] rollouts={len(job.runs)} rewards={rewards} spread={spread:.3f}")
     assert spread > 0.0, (
-        "DEGENERATE reward: every rollout scored the same, so GRPO advantage is 0. "
+        "DEGENERATE reward: every rollout scored the same -> GRPO advantage is 0. "
         "Vary fixture difficulty until the base model is partially right."
     )
 
+    # One GRPO-style optimizer step.
     result = await trainer.step(
-        batch, group_size=config.GROUP_SIZE, learning_rate=config.LR
-    )  # VERIFY signature
+        job.runs, learning_rate=config.LR, group_size=config.GROUP_SIZE
+    )
     print(f"[H4] trainer.step OK -> {result}")
 
 
