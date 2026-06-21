@@ -596,4 +596,96 @@ schemas, the prompts, or the reward. Shared contract = these two schemas + this 
   taxonomy honored.
 - **Reward untouched:** the loop reads eval artifacts and writes diagnostics. It can be deleted
   without changing a single rollout.
+
+---
+
+## 12. Reconciliation with Codex's analyzer (meet-in-the-middle)
+
+Codex built an analyzer (`envs/loop_auditor_env/self_improve.py`, 9 tests green) **in parallel,
+before this contract landed**. It re-derives signals from raw traces, emits a **multi-label**
+`buckets` list with its own fix vocabulary, joins by `run_id` only, and omits `prompt_confusion`.
+An integration test (Codex's analyzer over the producer's `verdicts.jsonl`) showed it mislabels
+clean false-positives as `bad_localization`, can't see `parse_failure` (the producer's sanitized
+core looks valid), and misses `dataset_issue`/`prompt_confusion`/`artifact_miss` — because it
+**ignores the `signals` block and lacks ground truth** when only the sidecar is present.
+
+**Decision (meet-in-the-middle):** the producer's `verdict_sidecar.signals` is the single source of
+truth; the analyzer reads `signals` (no raw-trace re-derivation, no drift). The record keeps BOTH
+Claude's prioritized `bucket` + `fix_type` lever AND Codex's multi-label `buckets` +
+`recommended_fix_type` + markdown report. `schemas/improvement_record.json` is the merged contract.
+
+### 12.1 Multi-label membership (`buckets`)
+
+`buckets` = the **sorted set of every bucket whose independent predicate holds** (Codex-style
+completeness). `bucket` = the §5 precedence pick among them (Claude-style prioritization).
+Invariant: `buckets == sorted({bucket} ∪ contributing_factors)`, `contributing_factors ==
+sorted(set(buckets) - {bucket})`. Predicates (guards prevent spurious labels on parse/dataset
+failures):
+
 ```
+dataset       = s.gt_fault_present and (not s.gt_step_in_trace or s.fix_concept_total == 0)
+parse_failure = not s.verdict_parsed
+# gt-dependent buckets need a parsed verdict AND a trustworthy ground truth:
+ok            = s.verdict_parsed and not dataset
+false_positive_clean = ok and (not s.gt_fault_present) and s.pred_fault_present
+false_negative_buggy = ok and s.gt_fault_present and (not s.pred_fault_present)
+bad_localization     = ok and s.gt_fault_present and s.pred_fault_present and not s.localization_correct
+bad_failure_type     = ok and s.gt_fault_present and s.pred_fault_present and not s.failure_type_correct
+fabricated_step_ref  = not s.citation_passed
+weak_fix             = _weak_fix(s)
+artifact_miss        = _artifact_miss(s).matched
+prompt_confusion     = _prompt_confusion(s)
+```
+
+`bucket` (primary) is still the first match of the §5 elif chain over the same signals; it is
+always a member of `buckets`. (For every golden case the multi-label set equals
+`{bucket} ∪ §5-factors`; the guards keep parse/dataset rows single-labelled.)
+
+### 12.2 Fix-vocabulary map (`bucket` → `fix_type` lever × `recommended_fix_type` category)
+
+| primary `bucket` | `fix_type` (Claude lever) | `recommended_fix_type` (Codex category) |
+|---|---|---|
+| dataset_issue | dataset_repair | dataset_or_sidecar |
+| parse_failure | prompt_change | verdict_format |
+| false_positive_clean | prompt_change¹ / new_training_example | clean_trace_calibration |
+| false_negative_buggy | prompt_change² / new_training_example | fault_detection |
+| fabricated_step_ref | prompt_change | citation_grounding |
+| bad_localization | prompt_change² / new_training_example | localization |
+| bad_failure_type | grader_alias_change³ / prompt_change | failure_type_taxonomy |
+| weak_fix | prompt_change | fix_quality |
+| artifact_miss | prompt_change | artifact_inspection |
+| prompt_confusion | prompt_change | prompt_clarity |
+
+¹ prompt_change if `fabricated_step_ref`/`prompt_confusion` ∈ buckets. ² prompt_change if
+`artifact_miss` ∈ buckets. ³ grader_alias_change if `suggested_alias` non-empty.
+`fix_type` is the actionable lever; `recommended_fix_type` is the report grouping label — both ship.
+
+### 12.3 Change-list for Codex's analyzer (no rewrite — these are targeted diffs)
+
+`envs/loop_auditor_env/self_improve.py` keeps its CLI, `read_jsonl`/`write_jsonl`,
+`summarize_improvements`, `format_markdown_summary`. The classification core changes to consume
+`signals`:
+
+1. **Key by `(run_id, model)`**, not `run_id` (don't collapse base vs trained). `index_by_run_id`
+   → `index_by_run_id_model`.
+2. **Read `sidecar["signals"]`** for the deterministic facts instead of re-deriving from raw
+   traces: `gt_fault_present`, `gt_step_id`, `gt_failure_type`, `pred_fault_present`,
+   `verdict_parsed`, `citation_passed`, `fabricated_step_refs`, `type_out_of_enum`,
+   `failure_type_raw`, `is_rich_case`, `artifact_count`, `artifact_tool_calls`,
+   `fix_concept_total/matched`, `gt_step_in_trace`, `proposed_fix_contains_code`,
+   `explanation_empty`, `references_path_token`. The `traces` input becomes **optional/legacy**
+   (only for runs that lack a sidecar).
+3. **Compute `buckets`** from §12.1 predicates; **`bucket`** from the §5 precedence; set
+   `contributing_factors = sorted(set(buckets) - {bucket})`.
+4. **Add the `prompt_confusion` bucket** (and `prompt_clarity` category) to `BUCKETS` / the maps.
+5. **Emit the merged record** (`schemas/improvement_record.json`): add `bucket`, `fix_type`
+   (§12.2 lever), `recommended_fix_type` (§12.2 category, renamed from the old derivation),
+   `confidence`, `severity`, `suggested_alias`; keep `buckets`, `diagnosis`, `reward`; rename the
+   old `evidence` list → `notes`, and put structured values in `evidence` (object).
+6. **Test against the golden oracle** `self_improve/fixtures/improvement_cases.jsonl` — each
+   `expect` now pins `bucket`, `buckets`, `fix_type`, `recommended_fix_type`, `confidence`,
+   `severity`, `suggested_alias` (partial oracle; `evidence`/`diagnosis`/`notes` are free-text).
+
+Claude owns: the producer (`diagnostics.py`), the two schemas, this note, the golden fixture.
+Codex owns: the analyzer diffs above, the CLI, the tests. Ping Claude to add a signal/case rather
+than re-deriving it in the analyzer.

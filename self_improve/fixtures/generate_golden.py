@@ -71,6 +71,16 @@ VAGUE_FIX = "Clean it up."
 CODE_FIX = GOOD_FIX + "\n```python\ndef rerun():\n    pass\n```"
 
 
+# bucket -> Codex's recommended_fix_type category (taxonomy note §12.2)
+RECO = {
+    "dataset_issue": "dataset_or_sidecar", "parse_failure": "verdict_format",
+    "false_positive_clean": "clean_trace_calibration", "false_negative_buggy": "fault_detection",
+    "fabricated_step_ref": "citation_grounding", "bad_localization": "localization",
+    "bad_failure_type": "failure_type_taxonomy", "weak_fix": "fix_quality",
+    "artifact_miss": "artifact_inspection", "prompt_confusion": "prompt_clarity",
+}
+
+
 def case(cid, *, note, trace_view, ground_truth, raw, tool_calls, expect):
     er = eval_harness.build_eval_record(
         trace_view["run_id"], "trained", raw, trace_view, ground_truth,
@@ -79,7 +89,10 @@ def case(cid, *, note, trace_view, ground_truth, raw, tool_calls, expect):
         er, raw, trace_view, ground_truth, tool_calls=tool_calls,
         base_traces_dir=config.BASE_TRACES_DIR)
     if expect is not None:
-        expect = {**expect, "contributing_factors": sorted(expect.get("contributing_factors", []))}
+        factors = sorted(expect.get("contributing_factors", []))
+        buckets = sorted({expect["bucket"], *factors})
+        expect = {**expect, "contributing_factors": factors, "buckets": buckets,
+                  "recommended_fix_type": RECO[expect["bucket"]]}
     return {"id": cid, "note": note, "eval_result": er, "sidecar": sc, "expect": expect}
 
 
@@ -203,6 +216,15 @@ def build() -> list:
         tool_calls={"get_step": 1},
         expect={"bucket": "artifact_miss", "fix_type": "prompt_change",
                 "confidence": "high", "severity": "low", "suggested_alias": {}}))
+
+    out.append(case(
+        "bad_loc_and_type", note="wrong real step AND wrong (valid-enum) type -> multi-label",
+        trace_view=trace("g17"), ground_truth=gt(),
+        raw=verdict(True, "a1", "routing", "The fault is at a1 and it's a routing issue.", GOOD_FIX),
+        tool_calls={},
+        expect={"bucket": "bad_localization", "contributing_factors": ["bad_failure_type"],
+                "fix_type": "new_training_example", "confidence": "high", "severity": "high",
+                "suggested_alias": {}}))
 
     out.append(case(
         "healthy_no_record", note="fully correct run -> classify returns None",

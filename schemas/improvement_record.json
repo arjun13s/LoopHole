@@ -2,27 +2,24 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://loophole.dev/schemas/improvement_record.json",
   "title": "ImprovementRecord",
-  "description": "One record per DEFECTIVE auditor run, emitted by the self-improvement analyzer (OWNER: Codex) from a joined (eval_result, verdict_sidecar) pair. Each record names a single primary failure bucket, the deterministic evidence that fired it, the recommended fix type, and a human-readable diagnosis. Healthy runs (full credit, no flags) produce NO record. The analyzer is a PURE function over schemas/verdict_sidecar.json `signals` — it never reads traces, calls an LLM, or touches the GRPO reward.",
+  "description": "One record per DEFECTIVE auditor run, emitted by the self-improvement analyzer (OWNER: Codex) from a joined (eval_result, verdict_sidecar) pair keyed by (run_id, model). RECONCILED ('meet in the middle') contract between Claude's producer-fed taxonomy and Codex's multi-label analyzer: it carries BOTH a single prioritized `bucket` + `fix_type` lever (Claude) AND the full multi-label `buckets` set + `recommended_fix_type` category (Codex's report). Healthy runs (no holding bucket) produce NO record. The analyzer is PURE over schemas/verdict_sidecar.json `signals` — it never reads raw traces, calls an LLM, or touches the GRPO reward. Invariant: buckets == sorted({bucket} ∪ contributing_factors).",
   "type": "object",
   "required": [
     "run_id",
     "model",
     "bucket",
+    "buckets",
     "fix_type",
+    "recommended_fix_type",
     "confidence",
     "severity",
     "evidence",
-    "diagnosis",
-    "suggested_action"
+    "diagnosis"
   ],
   "additionalProperties": false,
-  "properties": {
-    "run_id": { "type": "string" },
-    "model": { "type": "string", "description": "'base' | 'trained' (free string)." },
-    "reward": { "type": "number", "description": "The run's §1.4 reward, copied through for ranking." },
-    "bucket": {
+  "$defs": {
+    "bucketName": {
       "type": "string",
-      "description": "The single primary failure bucket, assigned by the precedence decision tree in the taxonomy design note.",
       "enum": [
         "dataset_issue",
         "parse_failure",
@@ -35,65 +32,77 @@
         "artifact_miss",
         "prompt_confusion"
       ]
+    }
+  },
+  "properties": {
+    "run_id": { "type": "string" },
+    "model": { "type": "string", "description": "'base' | 'trained' (free string). Part of the join key — never collapsed away." },
+    "reward": { "type": "number", "description": "The run's §1.4 reward, copied through for ranking." },
+
+    "bucket": {
+      "$ref": "#/$defs/bucketName",
+      "description": "Claude: the single PRIMARY bucket, assigned by the §5 precedence tree. The report headline / prioritization key. Always == buckets[? primary]; the precedence pick among `buckets`."
+    },
+    "buckets": {
+      "type": "array",
+      "description": "Codex: the full MULTI-LABEL set of every bucket whose independent predicate holds (§12), sorted. Always contains `bucket`. Empty ⇒ healthy ⇒ no record emitted.",
+      "items": { "$ref": "#/$defs/bucketName" }
     },
     "contributing_factors": {
       "type": "array",
-      "description": "Zero or more secondary buckets that also fired (cross-cutting signals such as artifact_miss / prompt_confusion / weak_fix / fabricated_step_ref). Never contains `bucket`.",
-      "items": {
-        "type": "string",
-        "enum": [
-          "dataset_issue",
-          "parse_failure",
-          "false_positive_clean",
-          "false_negative_buggy",
-          "fabricated_step_ref",
-          "bad_localization",
-          "bad_failure_type",
-          "weak_fix",
-          "artifact_miss",
-          "prompt_confusion"
-        ]
-      }
+      "description": "Convenience: buckets minus the primary (== sorted(set(buckets) - {bucket})).",
+      "items": { "$ref": "#/$defs/bucketName" }
     },
+
     "fix_type": {
       "type": "string",
-      "description": "The recommended lever. Exactly one. The current deterministic analyzer (§6) emits only prompt_change | grader_alias_change | dataset_repair | new_training_example. `tool_change` (a §4 discretionary lever when the tool surface is the blocker) and `no_action` (healthy runs produce NO record) are RESERVED for hand-authored records / future analyzer versions — not emitted by the deterministic tree.",
+      "description": "Claude: the recommended LEVER (what KIND of change). The current deterministic tree emits only prompt_change | grader_alias_change | dataset_repair | new_training_example. `tool_change` / `no_action` are RESERVED (hand-authored / future).",
+      "enum": ["prompt_change", "tool_change", "grader_alias_change", "dataset_repair", "new_training_example", "no_action"]
+    },
+    "recommended_fix_type": {
+      "type": "string",
+      "description": "Codex: the per-primary-bucket fix CATEGORY label used by its markdown report. Derived from `bucket` via the §12 map.",
       "enum": [
-        "prompt_change",
-        "tool_change",
-        "grader_alias_change",
-        "dataset_repair",
-        "new_training_example",
-        "no_action"
+        "verdict_format",
+        "dataset_or_sidecar",
+        "clean_trace_calibration",
+        "fault_detection",
+        "citation_grounding",
+        "artifact_inspection",
+        "localization",
+        "failure_type_taxonomy",
+        "fix_quality",
+        "prompt_clarity"
       ]
     },
+
     "confidence": {
       "type": "string",
-      "description": "high = the bucket was detected directly from a definitive signal; candidate = inferred from a fallback heuristic (e.g. artifact_miss without tool-call data).",
+      "description": "high = primary detected from a definitive signal; candidate = inferred fallback (e.g. artifact_miss without tool-call data).",
       "enum": ["high", "candidate"]
     },
     "severity": {
       "type": "string",
-      "description": "reward == 0 ⇒ high; partial credit ⇒ medium; full credit but a latent flag tripped ⇒ low.",
+      "description": "dataset_issue ⇒ high (data-severity); else reward==0 ⇒ high; promoted factor on a full-credit run ⇒ low; else medium.",
       "enum": ["high", "medium", "low"]
-    },
-    "evidence": {
-      "type": "object",
-      "description": "The specific signal values that fired this bucket (bucket-specific keys; see the taxonomy note). Lets the report show WHY without re-deriving.",
-      "additionalProperties": true
     },
     "suggested_alias": {
       "type": "object",
-      "description": "Only on bad_failure_type / prompt_confusion driven by an out-of-enum type: { raw_type_key: canonical_failure_type } to add to config.FAILURE_TYPE_ALIASES. Empty/absent otherwise.",
+      "description": "Only on a bad_failure_type primary driven by an out-of-enum type: { raw_type_key: canonical_failure_type } to add to config.FAILURE_TYPE_ALIASES. {} otherwise.",
       "additionalProperties": { "type": "string" }
     },
-    "diagnosis": {
-      "type": "string",
-      "description": "One deterministic, templated sentence: what went wrong, where, and the signal that proves it."
+
+    "evidence": {
+      "type": "object",
+      "description": "Claude: structured signal values that fired the buckets (bucket-specific keys). For artifact_miss, includes artifact_miss_confidence + artifact_tool_calls.",
+      "additionalProperties": true
     },
-    "suggested_action": {
-      "type": "string",
-      "description": "One deterministic, templated sentence: the concrete change to make (matches fix_type)."
-    }
+    "notes": {
+      "type": "array",
+      "description": "Codex: human-readable evidence lines (one per holding bucket), for the report drill-down.",
+      "items": { "type": "string" }
+    },
+    "diagnosis": { "type": "string", "description": "One templated sentence: what went wrong, where, and the signal that proves it." },
+    "suggested_action": { "type": "string", "description": "One templated sentence: the concrete change to make (matches fix_type)." }
   }
 }
