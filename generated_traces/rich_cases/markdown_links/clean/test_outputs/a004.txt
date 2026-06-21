@@ -1,0 +1,4 @@
+FAILED tests/test_markdown.py::test_multiple_links
+E       AssertionError: only the first link is returned
+E       Expected: all markdown link targets are returned in order
+1 failed, 5 passed in 0.06s

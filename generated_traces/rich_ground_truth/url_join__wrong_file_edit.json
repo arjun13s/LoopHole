@@ -1,0 +1,12 @@
+{
+  "case_id": "url_join__wrong_file_edit",
+  "failure_type": "wrong_file_edit",
+  "fault_present": true,
+  "fault_step_id": "a007",
+  "fix": {
+    "action": "replace",
+    "step_id": "a007",
+    "target": "repo/src/url_utils.py",
+    "tool_name": "write_file"
+  }
+}

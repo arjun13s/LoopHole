@@ -1,0 +1,12 @@
+{
+  "case_id": "markdown_links__tool_misuse",
+  "failure_type": "tool_misuse",
+  "fault_present": true,
+  "fault_step_id": "a005",
+  "fix": {
+    "action": "replace",
+    "step_id": "a005",
+    "target": "test_outputs/a004.txt",
+    "tool_name": "read_file"
+  }
+}

@@ -1,0 +1,4 @@
+diff --git a/src/palindrome.py b/src/palindrome.py
+@@
+-    # initial implementation
++    # corrected implementation: only alphanumeric lowercase characters are compared

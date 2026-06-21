@@ -1,0 +1,12 @@
+{
+  "case_id": "routing",
+  "failure_type": "routing",
+  "fault_present": true,
+  "fault_step_id": "a006",
+  "fix": {
+    "action": "insert",
+    "step_id": "a006",
+    "target": "a006",
+    "tool_name": "run_tests"
+  }
+}

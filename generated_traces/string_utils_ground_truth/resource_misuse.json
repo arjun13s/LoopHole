@@ -1,0 +1,12 @@
+{
+  "case_id": "resource_misuse",
+  "failure_type": "resource_misuse",
+  "fault_present": true,
+  "fault_step_id": "a003",
+  "fix": {
+    "action": "replace",
+    "step_id": "a003",
+    "target": "test_outputs/a002.txt",
+    "tool_name": "read_file"
+  }
+}
