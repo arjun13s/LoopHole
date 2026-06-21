@@ -51,3 +51,49 @@ def get_step(trace: dict, step_id: str) -> dict:
             if isinstance(step, dict) and step.get("step_id") == step_id:
                 return step
     raise KeyError(f"step_id not found: {step_id}")
+
+
+import json as _json
+
+
+def _iter_steps(trace: dict):
+    if not isinstance(trace, dict):
+        raise TypeError("trace must be a dict")
+    for iteration in trace.get("iterations", []) or []:
+        if isinstance(iteration, dict):
+            for step in iteration.get("steps", []) or []:
+                if isinstance(step, dict):
+                    yield step
+
+
+def _haystack(step: dict) -> str:
+    parts = []
+    for key in ("tool_name", "input", "output"):
+        v = step.get(key)
+        if v is None:
+            continue
+        parts.append(v if isinstance(v, str) else _json.dumps(v, default=str))
+    return " ".join(parts).lower()
+
+
+def search_steps(trace: dict, query: str) -> list:
+    """Steps whose tool_name/input/output contains `query` (case-insensitive)."""
+    q = str(query).lower()
+    return [s for s in _iter_steps(trace) if q in _haystack(s)]
+
+
+def get_errors(trace: dict) -> list:
+    """Steps with status in {error, timeout} (often near the fault)."""
+    return [s for s in _iter_steps(trace) if s.get("status") in ("error", "timeout")]
+
+
+def get_step_io(trace: dict, step_id: str) -> dict:
+    """Untruncated input/output for a step. Raises KeyError if not found."""
+    s = get_step(trace, step_id)
+    return {"step_id": s["step_id"], "input": s.get("input"), "output": s.get("output")}
+
+
+def get_reference_solution(trace: dict) -> "str | None":
+    """Task reference solution if the trace carries one (Person 1 may add it)."""
+    ref = (trace or {}).get("reference_solution")
+    return ref if isinstance(ref, str) and ref.strip() else None
