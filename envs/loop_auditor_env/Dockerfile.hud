@@ -19,6 +19,9 @@ COPY schemas ./schemas
 # (scripts/vendor_rich.py). LOOP_AUDITOR_DATASET=rich_heldout serves it.
 COPY rich ./rich
 COPY rich_cases ./rich_cases
+# Vendored live_qwen taskset (scripts/vendor_live.py). LOOP_AUDITOR_DATASET=live_heldout serves it.
+COPY live ./live
+COPY live_cases ./live_cases
 
 # Serve the v6 control channel; @env.initialize brings up the in-process tools MCP capability.
 EXPOSE 8765
