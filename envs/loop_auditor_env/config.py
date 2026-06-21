@@ -131,17 +131,32 @@ AUDITOR_EVAL_MAX_TOKENS = _env_int(
     int(_GLOBAL_AUDITOR_MAX_TOKENS or (4096 if AUDITOR_EVAL_THINK else 1024)),
 )
 
+# Step (tool-call turn) budget for the auditor. The default inherited from HUD is
+# only 10 — too tight for an audit that inspects several steps/artifacts, and far
+# too tight for GATE mode (observe_next + gate ~= 2 calls per iteration). A run
+# that exhausts its steps before emitting the verdict scores 0, so we give a
+# generous ceiling (it costs nothing unless the model actually uses the turns).
+_GLOBAL_AUDITOR_MAX_STEPS = os.environ.get("LOOP_AUDITOR_MAX_STEPS")
+AUDITOR_TRAIN_MAX_STEPS = _env_int(
+    "LOOP_AUDITOR_TRAIN_MAX_STEPS", int(_GLOBAL_AUDITOR_MAX_STEPS or 48)
+)
+AUDITOR_EVAL_MAX_STEPS = _env_int(
+    "LOOP_AUDITOR_EVAL_MAX_STEPS", int(_GLOBAL_AUDITOR_MAX_STEPS or 64)
+)
+
 # Back-compat aliases for older tests/scripts that read the single-mode knobs.
 AUDITOR_THINK = AUDITOR_TRAIN_THINK
 AUDITOR_MAX_TOKENS = AUDITOR_TRAIN_MAX_TOKENS
 
 
 def auditor_output_controls(profile: str) -> dict:
-    """Return think/max_tokens controls for the train or eval auditor profile."""
+    """Return think/max_tokens/max_steps controls for the train or eval profile."""
     if profile == "train":
-        return {"think": AUDITOR_TRAIN_THINK, "max_tokens": AUDITOR_TRAIN_MAX_TOKENS}
+        return {"think": AUDITOR_TRAIN_THINK, "max_tokens": AUDITOR_TRAIN_MAX_TOKENS,
+                "max_steps": AUDITOR_TRAIN_MAX_STEPS}
     if profile == "eval":
-        return {"think": AUDITOR_EVAL_THINK, "max_tokens": AUDITOR_EVAL_MAX_TOKENS}
+        return {"think": AUDITOR_EVAL_THINK, "max_tokens": AUDITOR_EVAL_MAX_TOKENS,
+                "max_steps": AUDITOR_EVAL_MAX_STEPS}
     raise ValueError(f"unknown auditor profile: {profile!r}")
 
 # --- GRPO knobs --------------------------------------------------------------

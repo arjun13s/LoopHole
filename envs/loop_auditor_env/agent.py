@@ -35,9 +35,13 @@ def _completion_controls(model: str, *, trainable: bool, profile: "str | None" =
     controls = config.auditor_output_controls(profile)
     max_tokens = controls["max_tokens"]
     think = controls["think"]
+    # max_steps is a top-level AgentConfig field (shared by Claude + openai_compatible);
+    # set it generously so an audit/gate rollout can't run out of tool-call turns
+    # before emitting its verdict (the HUD default of 10 is far too tight for gate).
+    max_steps = controls["max_steps"]
 
     if any(h in (model or "").lower() for h in _ANTHROPIC_HINTS):
-        return {"max_tokens": max_tokens}
+        return {"max_tokens": max_tokens, "max_steps": max_steps}
 
     extra_body: dict = {}
     if trainable:
@@ -50,7 +54,7 @@ def _completion_controls(model: str, *, trainable: bool, profile: "str | None" =
     completion_kwargs: dict = {"max_tokens": max_tokens}
     if extra_body:
         completion_kwargs["extra_body"] = extra_body
-    return {"completion_kwargs": completion_kwargs}
+    return {"completion_kwargs": completion_kwargs, "max_steps": max_steps}
 
 
 def build_auditor_agent(

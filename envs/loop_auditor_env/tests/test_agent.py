@@ -54,6 +54,17 @@ def test_eval_profile_keeps_reasoning(monkeypatch):
 def test_anthropic_model_uses_top_level_max_tokens(monkeypatch):
     monkeypatch.setattr(hud.agents, "create_agent", lambda model, **kw: (model, kw))
     monkeypatch.setattr(agent_mod.config, "AUDITOR_EVAL_MAX_TOKENS", 777)
+    monkeypatch.setattr(agent_mod.config, "AUDITOR_EVAL_MAX_STEPS", 55)
     _model, kw = agent_mod.build_auditor_agent("claude-sonnet-4-6")
-    # ClaudeConfig has a real max_tokens field and no completion_kwargs/extra_body
-    assert kw == {"max_tokens": 777}
+    # ClaudeConfig has real max_tokens/max_steps fields and no completion_kwargs/extra_body
+    assert kw == {"max_tokens": 777, "max_steps": 55}
+
+
+def test_profiles_set_a_generous_step_budget(monkeypatch):
+    monkeypatch.setattr(hud.agents, "create_agent", lambda model, **kw: (model, kw))
+    monkeypatch.setattr(agent_mod.config, "AUDITOR_TRAIN_MAX_STEPS", 40)
+    monkeypatch.setattr(agent_mod.config, "AUDITOR_EVAL_MAX_STEPS", 70)
+    _m, train_kw = agent_mod.build_auditor_agent("qwen-fork", trainable=True)
+    _m, eval_kw = agent_mod.build_auditor_agent("qwen-fork")
+    assert train_kw["max_steps"] == 40  # cheaper ceiling for GRPO rollouts
+    assert eval_kw["max_steps"] == 70   # generous for eval (gate needs ~2 calls/iter)
