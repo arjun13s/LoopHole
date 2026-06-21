@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# loophole — Act 2 entrypoint. Type this on camera with the prompt:
+#   ./scripts/demo/loophole "build me a note taking app"
+# Runs the real Claude build -> genuine failure -> LoopHole eval-agent fix loop.
+# Uses your logged-in `claude` CLI. Tune typewriter with LOOPHOLE_SPEED.
+set -euo pipefail
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+PY="$REPO_ROOT/.venv/bin/python"; [ -x "$PY" ] || PY="python3"
+exec "$PY" "$REPO_ROOT/scripts/demo/movie/loophole_run.py" "${@:-build me a note taking app}"
