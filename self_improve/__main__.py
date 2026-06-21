@@ -9,6 +9,7 @@ from pathlib import Path
 import sys
 
 from . import analyzer
+from . import supervisor
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -24,6 +25,18 @@ def build_parser() -> argparse.ArgumentParser:
     run = subparsers.add_parser("run", help="Run the HUD eval agent, then analyze its artifacts")
     _add_run_args(run)
     _add_analyze_args(run, require_inputs=False)
+
+    supervise = subparsers.add_parser(
+        "supervise",
+        help="Run baseline/eval-assisted stop-and-resume coding-agent experiments",
+    )
+    supervise.add_argument("--task", required=True, help="Path to supervisor task JSON")
+    supervise.add_argument("--agent", required=True, help="Coding-agent shell command")
+    supervise.add_argument("--eval-agent", default=None, help="Optional eval-agent shell command")
+    supervise.add_argument("--mode", default="both", choices=("baseline", "assisted", "both"))
+    supervise.add_argument("--out-dir", default="supervision_runs")
+    supervise.add_argument("--max-attempts", type=int, default=supervisor.DEFAULT_MAX_ATTEMPTS)
+    supervise.add_argument("--timeout", type=int, default=120)
 
     # No-subcommand path is the one-line happy path:
     #   loop-auditor --split heldout --report report.md
@@ -67,6 +80,8 @@ def main(argv: "list[str] | None" = None) -> int:
         command = "analyze"
     else:
         command = args.command or "run"
+    if command == "supervise":
+        return _run_supervisor(args)
     if command == "run":
         _run_hud_eval(args)
 
@@ -86,6 +101,51 @@ def main(argv: "list[str] | None" = None) -> int:
         summary = analyzer.summarize(records)
         print(f"wrote {summary['n']} improvement records -> {args.out}")
     return 0
+
+
+def _run_supervisor(args: argparse.Namespace) -> int:
+    if args.mode == "both":
+        result = supervisor.run_pair(
+            args.task,
+            args.agent,
+            args.out_dir,
+            eval_agent_cmd=args.eval_agent,
+            max_attempts=args.max_attempts,
+            timeout=args.timeout,
+        )
+        print(_supervision_pair_summary(result))
+        return 0
+    summary = supervisor.run_supervision(
+        args.task,
+        args.agent,
+        args.mode,
+        args.out_dir,
+        eval_agent_cmd=args.eval_agent,
+        max_attempts=args.max_attempts,
+        timeout=args.timeout,
+    )
+    print(_supervision_single_summary(summary))
+    return 0
+
+
+def _supervision_single_summary(summary: supervisor.RunSummary) -> str:
+    return "\n".join([
+        f"mode={summary.mode} solved={summary.solved} attempts={summary.attempts}",
+        f"tokens: coding={summary.coding_tokens} eval={summary.eval_tokens} total={summary.total_tokens}",
+        f"transcript={summary.transcript}",
+        f"metrics={summary.metrics}",
+    ])
+
+
+def _supervision_pair_summary(result: dict) -> str:
+    baseline = result["baseline"]
+    assisted = result["assisted"]
+    return "\n".join([
+        "supervision comparison complete",
+        f"baseline: solved={baseline['solved']} total_tokens={baseline['total_tokens_estimate']}",
+        f"assisted: solved={assisted['solved']} total_tokens={assisted['total_tokens_estimate']}",
+        f"side_by_side={result['side_by_side']}",
+    ])
 
 
 def _run_hud_eval(args: argparse.Namespace) -> None:

@@ -1,0 +1,10 @@
+{
+  "id": "duration-loop-demo",
+  "prompt": "Fix parse_duration so combined units like '1h30m' return total seconds.",
+  "test_command": ["{python}", "-m", "unittest", "discover", "-s", "tests"],
+  "files": {
+    "src/duration.py": "import re\n\n\ndef parse_duration(text):\n    match = re.match(r\"^(\\d+)([hms])$\", text)\n    if not match:\n        raise ValueError(f\"invalid duration: {text}\")\n    value = int(match.group(1))\n    unit = match.group(2)\n    if unit == \"h\":\n        return value * 3600\n    if unit == \"m\":\n        return value * 60\n    return value\n",
+    "src/date_utils.py": "def normalize_date(value):\n    return value.strip()\n",
+    "tests/test_duration.py": "import sys\nfrom pathlib import Path\nimport unittest\n\nsys.path.insert(0, str(Path(__file__).resolve().parents[1]))\n\nfrom src.duration import parse_duration\n\n\nclass DurationTests(unittest.TestCase):\n    def test_single_units(self):\n        self.assertEqual(parse_duration(\"2h\"), 7200)\n        self.assertEqual(parse_duration(\"45m\"), 2700)\n        self.assertEqual(parse_duration(\"10s\"), 10)\n\n    def test_combined_units(self):\n        self.assertEqual(parse_duration(\"1h30m\"), 5400)\n        self.assertEqual(parse_duration(\"2m10s\"), 130)\n\n\nif __name__ == \"__main__\":\n    unittest.main()\n"
+  }
+}

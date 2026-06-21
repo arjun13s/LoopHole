@@ -58,6 +58,41 @@ the `run` command invokes the HUD eval agent upstream, while the analysis layer 
 `eval_results.jsonl` plus `verdicts.jsonl`, never calls a model itself, and never touches reward
 semantics.
 
+## Stop-and-resume supervisor demo
+
+For the live-loop behavior, use `supervise`. It runs a coding CLI, watches tests fail, then either:
+
+- `baseline`: resumes the coding agent with its own logs/context
+- `assisted`: asks an eval agent for a diagnosis, then resumes the coding agent with that hint
+- `both`: runs both and writes a side-by-side comparison
+
+Deterministic demo:
+
+```bash
+loop-auditor supervise \
+  --task self_improve/fixtures/supervisor_demo/task.json \
+  --agent "{python} {package}/fixtures/supervisor_demo/fake_coding_agent.py" \
+  --mode both \
+  --out-dir supervision_runs/demo
+```
+
+Outputs:
+
+```text
+supervision_runs/demo/baseline/transcript.md
+supervision_runs/demo/assisted/transcript.md
+supervision_runs/demo/side_by_side.md
+```
+
+To wrap a real coding CLI, replace `--agent` with the command to run. The supervisor passes:
+`LOOP_AUDITOR_REPO`, `LOOP_AUDITOR_TASK_FILE`, `LOOP_AUDITOR_ATTEMPT`,
+`LOOP_AUDITOR_HINT_FILE`, and `LOOP_AUDITOR_MODE`.
+
+To use a real eval-agent command instead of the built-in deterministic demo evaluator, pass
+`--eval-agent "...command..."`. The eval command receives `LOOP_AUDITOR_EVAL_CONTEXT`,
+`LOOP_AUDITOR_REPO`, and `LOOP_AUDITOR_TASK_FILE` and should print a diagnosis without editing
+files.
+
 ## License
 
 [MIT](./LICENSE)

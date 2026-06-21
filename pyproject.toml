@@ -31,7 +31,12 @@ loop_auditor_env = "envs/loop_auditor_env"
 "loop_auditor_env.scripts" = "envs/loop_auditor_env/scripts"
 
 [tool.setuptools.package-data]
-self_improve = ["fixtures/*.jsonl", "fixtures/*.md", "fixtures/rich_case/*"]
+self_improve = [
+    "fixtures/*.jsonl",
+    "fixtures/*.md",
+    "fixtures/rich_case/*",
+    "fixtures/supervisor_demo/*",
+]
 loop_auditor_env = [
     "fixtures/*.json",
     "rich/*.jsonl",
