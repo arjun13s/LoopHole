@@ -1,12 +1,7 @@
 {
   "case_id": "config_bool__tool_misuse",
-  "failure_type": "tool_misuse",
-  "fault_present": true,
-  "fault_step_id": "a005",
-  "fix": {
-    "action": "replace",
-    "step_id": "a005",
-    "target": "test_outputs/a004.txt",
-    "tool_name": "read_file"
-  }
+  "failure_type": null,
+  "fault_present": false,
+  "fault_step_id": null,
+  "fix": null
 }

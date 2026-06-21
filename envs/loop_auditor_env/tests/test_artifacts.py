@@ -53,7 +53,9 @@ def test_search_artifacts_returns_ordered_hits(tmp_path):
 
 def test_infers_local_rich_case_dir():
     trace = {"run_id": "ini_parser__routing", "iterations": []}
-    paths = artifacts.list_artifacts(trace, max_results=5)
+    # Use the real default limit: with command_logs/*.log present the repo files
+    # sort past the first few entries, so a tiny max_results is order-brittle.
+    paths = artifacts.list_artifacts(trace)
     assert "repo/README.md" in paths
 
 
