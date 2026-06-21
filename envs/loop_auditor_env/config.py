@@ -70,9 +70,10 @@ def _resolve_base_traces_dir() -> Path:
 BASE_TRACES_DIR = _resolve_base_traces_dir()
 
 # --- model (single source of truth; chosen at H0) ----------------------------
-# NOTE: HUD-native training may require a forked slug (`hud models fork ... --name ...`);
-# set LOOP_AUDITOR_MODEL to that slug once forked.
-MODEL = os.environ.get("LOOP_AUDITOR_MODEL", "Qwen/Qwen2.5-7B-Instruct")
+# The trainable fork (Qwen3-8B via Tinker), created with `hud models fork`. Used
+# for BOTH the rollout agent and TrainingClient. Override with LOOP_AUDITOR_MODEL
+# (e.g. "claude" for a strong base eval, or another forked slug).
+MODEL = os.environ.get("LOOP_AUDITOR_MODEL", "loophole-evalagent")
 
 # --- GRPO knobs --------------------------------------------------------------
 GROUP_SIZE = int(os.environ.get("LOOP_AUDITOR_GROUP_SIZE", "8"))
