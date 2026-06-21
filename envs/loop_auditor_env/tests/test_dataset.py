@@ -36,3 +36,17 @@ def test_select_traces_demo_all_includes_fixtures_and_live(monkeypatch):
     run_ids = {trace["run_id"] for trace in traces}
     assert {"buggy-resource-misuse-001", "clean-trace-001"}.issubset(run_ids)
     assert any(run_id.startswith("date_range_boundary__live_") for run_id in run_ids)
+
+
+def test_select_traces_all_tasksets_includes_every_split(monkeypatch):
+    monkeypatch.setattr(config, "DATASET", "all_tasksets")
+    traces = E.select_traces()
+    run_ids = {trace["run_id"] for trace in traces}
+    assert len(traces) == len(run_ids)
+    assert "buggy-resource-misuse-001" in run_ids
+    assert "base_clean_csv_001__clean__train_000" in run_ids
+    assert "clean_slugify_001__clean__heldout_000" in run_ids
+    assert "slugify__clean" in run_ids
+    assert "inventory_total__clean" in run_ids
+    assert "date_range_boundary__live_000" in run_ids
+    assert "date_range_boundary__live_003" in run_ids

@@ -15,6 +15,8 @@ RUN uv sync --frozen --no-dev || uv sync --no-dev
 COPY *.py ./
 COPY fixtures ./fixtures
 COPY schemas ./schemas
+# Vendored original Person 1 train/heldout taskset. LOOP_AUDITOR_DATASET=all_tasksets serves it.
+COPY taskset ./taskset
 # Vendored, self-contained normalized rich taskset + public case artifacts
 # (scripts/vendor_rich.py). LOOP_AUDITOR_DATASET=rich_heldout serves it.
 COPY rich ./rich
